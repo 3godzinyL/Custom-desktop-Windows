@@ -110,7 +110,7 @@ fn detect(p: &IxProfile) -> Profile {
         Some(2)
     } else if m & M_PACKAGE != 0 {
         Some(if m & M_TSCONFIG != 0 || n(1) > n(0) { 1 } else { NODE })
-    } else if m & M_CSPROJ != 0 || (m & M_SLN != 0 && n(5) > n(3)) {
+    } else if m & M_CSPROJ != 0 || (m & M_SLN != 0 && m & (M_VCXPROJ | M_CMAKE) == 0 && n(5) >= n(3) + n(4)) {
         Some(5)
     } else if m & (M_CMAKE | M_VCXPROJ | M_SLN) != 0 {
         Some(if n(4) > n(3) { 4 } else { 3 })
@@ -353,13 +353,35 @@ pub fn scan_projects() {
         .ok();
 }
 
+/// Nowy katalog z silnika C++: okna odswiezaja panel projektow.
+pub fn notify_catalog() {
+    post_all(1);
+}
+
 /// None = skan jeszcze trwa; Some = (jezyk, liczba projektow) od najliczniejszego.
+/// Katalog z silnika C++ ma pierwszenstwo; szybki skan indeksu dziala do jego powstania.
 pub fn project_counts() -> Option<Vec<(usize, usize)>> {
+    if let Some(list) = crate::katalog::projects() {
+        let mut counts: Vec<(usize, usize)> = Vec::new();
+        for p in &list {
+            match counts.iter_mut().find(|c| c.0 == p.kind) {
+                Some(c) => c.1 += 1,
+                None => counts.push((p.kind, 1)),
+            }
+        }
+        counts.sort_by(|a, b| b.1.cmp(&a.1));
+        return Some(counts);
+    }
     let s = SCAN.lock().unwrap();
     s.at.map(|_| s.groups.iter().map(|g| (g.0, g.1.len())).collect())
 }
 
 pub fn projects_of(kind: usize) -> Vec<String> {
+    if let Some(list) = crate::katalog::projects() {
+        let mut v: Vec<String> = list.into_iter().filter(|p| p.kind == kind).map(|p| p.path).collect();
+        v.sort_by(|a, b| util::cmp_logical(&crate::fsx::last_name(a), &crate::fsx::last_name(b)));
+        return v;
+    }
     let s = SCAN.lock().unwrap();
     s.groups.iter().find(|g| g.0 == kind).map(|g| g.1.clone()).unwrap_or_default()
 }

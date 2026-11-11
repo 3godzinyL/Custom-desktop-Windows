@@ -20,6 +20,10 @@ copy /y "target\release\indeks.exe" "%DEST%\indeks.exe" >nul
 if errorlevel 1 goto :blad
 rem silnik nakladki w C# (opcjonalny - bez niego nakladka dziala w Rust)
 if exist "target\release\indeks-nakladka.exe" copy /y "target\release\indeks-nakladka.exe" "%DEST%\indeks-nakladka.exe" >nul
+rem silnik katalogu (C++) i panel projektow / czyszczenia (C#)
+if exist "target\release\indeks-katalog.exe" copy /y "target\release\indeks-katalog.exe" "%DEST%\indeks-katalog.exe" >nul
+if exist "target\release\indeks-panel.exe" copy /y "target\release\indeks-panel.exe" "%DEST%\indeks-panel.exe" >nul
+if exist "target\release\indeks-optymalizator.exe" copy /y "target\release\indeks-optymalizator.exe" "%DEST%\indeks-optymalizator.exe" >nul
 
 "%DEST%\indeks.exe" --autostart-wl
 start "" "%DEST%\indeks.exe"

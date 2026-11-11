@@ -351,24 +351,8 @@ impl Renderer {
             x += fw + 16.0;
         }
 
-        // karty: [ikona nazwa  x]
-        let ty = l.tabbar.y + 4.0;
-        let th = l.tabbar.h - 6.0;
-        let mut x = 12.0 + self.measure_with("Karty:", &self.f_mono_bold) + 12.0;
-        for (k, t) in page.tabs.iter().enumerate() {
-            let fixed = k == 0;
-            let tw = (self.measure(&t.text, true) + 22.0 + if fixed { 10.0 } else { 28.0 }).min(260.0);
-            if x + tw > w - 12.0 {
-                l.tabs.push((Rc::default(), Rc::default()));
-                continue;
-            }
-            let tab = Rc { x, y: ty, w: tw, h: th };
-            let close = if fixed { Rc::default() } else { Rc { x: x + tw - 22.0, y: ty, w: 20.0, h: th } };
-            l.tabs.push((tab, close));
-            x += tw + 6.0;
-        }
-
-        let top = l.tabbar.bottom() + snap(10.0);
+        // Struktura i naglowek zaczynaja sie zaraz pod gornym paskiem
+        let top = l.top.bottom() + snap(10.0);
         // panele koncza sie nad rzedem aplikacji (a bez niego nad paskiem wydajnosci)
         let bottom = if l.apps_row.h > 0.0 { l.apps_row.y } else { l.status.y } - snap(8.0);
         // panel "Projekty na dysku" pod drzewem i lista folderow - panele nad nim
@@ -383,7 +367,24 @@ impl Renderer {
         let mw = w - mx - snap(8.0);
         // tytul, sciezka i (dla folderu) pasek jezykow z silnika projektow
         l.head = Rc { x: mx, y: top - 4.0, w: mw, h: snap(self.h1_h + self.line_h * 2.0 + 18.0) };
-        let cy = l.head.bottom() + snap(10.0);
+        // karty nad lista "Projekty i foldery": [ikona nazwa  x]
+        l.tabbar = Rc { x: mx, y: l.head.bottom(), w: mw, h: snap(30.0) };
+        let ty = l.tabbar.y + 4.0;
+        let th = l.tabbar.h - 6.0;
+        let mut tx = l.tabbar.x + self.measure_with("Karty:", &self.f_mono_bold) + 12.0;
+        for (k, t) in page.tabs.iter().enumerate() {
+            let fixed = k == 0;
+            let tw = (self.measure(&t.text, true) + 22.0 + if fixed { 10.0 } else { 28.0 }).min(260.0);
+            if tx + tw > l.tabbar.right() - 4.0 {
+                l.tabs.push((Rc::default(), Rc::default()));
+                continue;
+            }
+            let tab = Rc { x: tx, y: ty, w: tw, h: th };
+            let close = if fixed { Rc::default() } else { Rc { x: tx + tw - 22.0, y: ty, w: 20.0, h: th } };
+            l.tabs.push((tab, close));
+            tx += tw + 6.0;
+        }
+        let cy = l.tabbar.bottom() + snap(10.0);
         let kinds_right;
         if page.search {
             let frame = Rc { x: mx, y: cy, w: mw, h: bottom - cy };
@@ -395,10 +396,14 @@ impl Renderer {
             l.folders_frame = Rc { x: mx, y: cy, w: fw, h: upper - cy };
             l.folders = inner(&l.folders_frame, s);
             l.files_frame = Rc { x: mx + fw + snap(10.0), y: cy, w: mw - fw - snap(10.0), h: bottom - cy };
-            l.files = inner(&l.files_frame, s);
+            // w panelu dysku ten obszar zajmuje okno silnika C#
+            l.files = if page.disk { Rc::default() } else { inner(&l.files_frame, s) };
             kinds_right = l.folders_frame.right();
         }
         l.kinds_frame = Rc { x: l.tree_frame.x, y: bottom - kinds_h, w: kinds_right - l.tree_frame.x, h: kinds_h };
+        // naglowek ramki to link otwierajacy panel projektow i miejsca
+        let kinds_w = self.measure_with(&kinds_title(page), &self.f_mono_bold);
+        l.kinds_title = Rc { x: l.kinds_frame.x + 12.0, y: l.kinds_frame.y - self.mono_h / 2.0, w: kinds_w + 14.0, h: self.mono_h + 4.0 };
         // jezyki: ● Node.js 47 w dwoch rzedach (bez ramek)
         let (mut kx, mut ky) = (l.kinds_frame.x + 14.0, l.kinds_frame.y + 16.0);
         for (kind, n) in &page.kinds {
@@ -464,6 +469,31 @@ impl Renderer {
             l.folder = Col { x: x0 + nw, w: fw };
             l.size = Col { x: x0 + nw + fw, w: sw };
             l.date = Col { x: x0 + nw + fw + sw, w: dw };
+        }
+
+        // rozwinieta zakladka optymalizacji nad paskiem wydajnosci
+        if page.opt_reveal && page.status.opt_on {
+            let row_h = snap(26.0);
+            let header_h = snap(116.0);
+            let max_h = (h * 0.55).min(h - l.top.bottom() - snap(20.0));
+            let want = header_h + page.opt_apps.len() as f32 * row_h + snap(14.0);
+            let ph = want.min(max_h).max(header_h + snap(14.0));
+            let py = l.status.y - ph;
+            l.opt_panel = Rc { x: snap(8.0), y: py, w: w - snap(16.0), h: ph };
+            let list_top = py + header_h;
+            let avail = l.status.y - snap(10.0) - list_top;
+            let n = ((avail / row_h).floor().max(0.0) as usize).min(page.opt_apps.len());
+            let bw_min = snap(104.0);
+            let bw_lim = snap(122.0);
+            let bx = l.opt_panel.right() - snap(14.0);
+            for i in 0..n {
+                let ry = list_top + i as f32 * row_h + snap(2.0);
+                let bh = row_h - snap(6.0);
+                let min_r = Rc { x: bx - bw_min, y: ry, w: bw_min, h: bh };
+                let lim_r = Rc { x: min_r.x - snap(8.0) - bw_lim, y: ry, w: bw_lim, h: bh };
+                l.opt_limit.push(lim_r);
+                l.opt_min.push(min_r);
+            }
         }
         l
     }
@@ -585,7 +615,13 @@ impl Renderer {
                     self.draw_folders(rt, page, l, ui, &b, icons)?;
                 }
                 if self.visible(&l.files_frame) {
-                    self.draw_files(rt, page, l, ui, &b, icons)?;
+                    if page.disk {
+                        // widac tylko do chwili, gdy okno panelu C# przykryje ten obszar
+                        self.frame(rt, &l.files_frame, "", &b)?;
+                        self.text(rt, "Panel projektów się otwiera…", l.files_frame.x + 18.0, l.files_frame.y + 18.0, l.files_frame.w - 36.0, &self.f_body.clone(), &b.dim, false)?;
+                    } else {
+                        self.draw_files(rt, page, l, ui, &b, icons)?;
+                    }
                 }
             }
             if self.visible(&l.status) {
@@ -602,6 +638,10 @@ impl Renderer {
                 if v.w > 0.0 && self.visible(&v) {
                     self.draw_scrollbar(rt, l, ui, r)?;
                 }
+            }
+            // rozwinieta zakladka optymalizacji - nad wszystkim poza ustawieniami
+            if page.opt_reveal && page.status.opt_on && self.visible(&l.opt_panel) {
+                self.draw_opt_panel(rt, page, l, ui, &b)?;
             }
             if page.settings.is_some() && self.visible(&l.dialog) {
                 self.draw_settings(rt, page, l, ui, &b)?;
@@ -719,11 +759,11 @@ impl Renderer {
     fn draw_tabs(&mut self, rt: &ID2D1RenderTarget, page: &Page, l: &Layout, ui: &Ui, b: &Brushes, icons: &mut Icons) -> Result<()> {
         let bar = l.tabbar;
         let p = self.px();
-        self.hline(rt, 0.0, l.width, bar.bottom() - p, &b.frame);
+        self.hline(rt, bar.x, bar.right(), bar.bottom() - p, &b.frame);
         let ly = bar.y + (bar.h - self.mono_h) / 2.0;
-        self.text(rt, "Karty:", 12.0, ly, 200.0, &self.f_mono_bold.clone(), &b.dim, false)?;
+        self.text(rt, "Karty:", bar.x, ly, 200.0, &self.f_mono_bold.clone(), &b.dim, false)?;
         if page.tabs.is_empty() {
-            let x = 12.0 + self.measure_with("Karty:", &self.f_mono_bold) + 12.0;
+            let x = bar.x + self.measure_with("Karty:", &self.f_mono_bold) + 12.0;
             self.text(rt, "dwuklik na folderze w strukturze dodaje kartę", x, bar.y + (bar.h - self.line_h) / 2.0, 600.0, &self.f_body.clone(), &b.dim, false)?;
             return Ok(());
         }
@@ -905,8 +945,7 @@ impl Renderer {
     // --- foldery ---
 
     fn draw_folders(&mut self, rt: &ID2D1RenderTarget, page: &Page, l: &Layout, ui: &Ui, b: &Brushes, icons: &mut Icons) -> Result<()> {
-        let title = format!("Projekty i foldery ({})", page.folders.len());
-        self.frame(rt, &l.folders_frame, &title, b)?;
+        self.frame(rt, &l.folders_frame, &page.folders_title, b)?;
         let v = l.folders;
         let scroll = ui.scroll[Region::Folders as usize];
         self.clip(rt, &v);
@@ -1004,9 +1043,13 @@ impl Renderer {
 
     fn draw_kinds(&mut self, rt: &ID2D1RenderTarget, page: &Page, l: &Layout, ui: &Ui, b: &Brushes) -> Result<()> {
         let f = l.kinds_frame;
-        let total: usize = page.kinds.iter().map(|k| k.1).sum();
-        let title = if page.scan.is_some() { "Projekty na dysku".to_string() } else { format!("Projekty na dysku ({})", total) };
+        let title = kinds_title(page);
         self.frame(rt, &f, &title, b)?;
+        // tytul to link do panelu: ten sam tekst w kolorze linku na ramce
+        let t = l.kinds_title;
+        let (hot, on) = (ui.hover == Target::Disk, page.disk);
+        let ty = f.y - self.mono_h / 2.0 + 1.5 * self.px();
+        self.text(rt, &title, f.x + 18.0, ty, t.w, &self.f_mono_bold.clone(), if on { &b.yellow } else { &b.link }, hot)?;
         if let Some((pct, scanned)) = page.scan {
             let y = f.y + 18.0;
             let label = if pct > 0.0 {
@@ -1242,6 +1285,15 @@ impl Renderer {
         let ram = st.ram_used as f32 / st.ram_total.max(1) as f32;
         let info = format!("{:>3}% {}/{}", (ram * 100.0).round() as u32, stats::gb(st.ram_used), stats::gb(st.ram_total));
         item(rt, "RAM", ram, 10, &info, &mut x)?;
+        // oszczednosci optymalizacji (szczegoly po przewinieciu pulpitu w dol)
+        if st.opt_on && st.opt_count > 0 {
+            self.text(rt, "OPT", x, ty, 60.0, &mono_b, &b.cyan, false)?;
+            x += self.measure_with("OPT", &mono_b) + 6.0;
+            let info = format!("−{} · {} aplik.", stats::mb(st.opt_saved), st.opt_count);
+            self.text(rt, &info, x, ty, 260.0, &mono, &b.text, false)?;
+            x += self.measure_with(&info, &mono) + 14.0;
+            self.vline(rt, x - 7.0, s.y + 7.0, s.bottom() - 4.0, &b.frame);
+        }
         let own = format!(
             "Indeks: RAM {} · CPU {} · {} plików w indeksie",
             stats::mb(st.own),
@@ -1251,6 +1303,128 @@ impl Renderer {
         let ow = self.measure_with(&own, &mono);
         if x + ow + 12.0 < l.width {
             self.text(rt, &own, l.width - ow - 12.0, ty, ow + 4.0, &mono, &b.dim, false)?;
+        }
+        Ok(())
+    }
+
+    /// Segmenty w wymuszonym kolorze (kreski „bez optymalizacji").
+    fn seg_marked(&self, rt: &ID2D1RenderTarget, x: f32, y: f32, n: usize, frac: f32, color: u32) -> Result<f32> {
+        let filled = (frac.clamp(0.0, 1.0) * n as f32).round() as usize;
+        unsafe {
+            let on = rt.CreateSolidColorBrush(&rgb(color), None)?;
+            let off = rt.CreateSolidColorBrush(&rgb(SEG_EMPTY), None)?;
+            let (sw, gap, h) = (self.snap(6.0), self.snap(2.0), self.snap(13.0));
+            let y = self.snap(y);
+            for k in 0..n {
+                let sx = self.snap(x + k as f32 * (sw + gap));
+                rt.FillRectangle(&rect(sx, y, sw, h), if k < filled { &on } else { &off });
+            }
+            Ok(n as f32 * (sw + gap))
+        }
+    }
+
+    /// Mała porównywarka „teraz vs bez optymalizacji": zielone kreski = teraz, czerwone = bez.
+    fn opt_meter(&self, rt: &ID2D1RenderTarget, label: &str, x: f32, y: f32, now: f32, would: f32, now_s: &str, would_s: &str, b: &Brushes) -> Result<()> {
+        let mono = self.f_mono.clone();
+        let mono_b = self.f_mono_bold.clone();
+        let by = y + (self.mono_h - 13.0) / 2.0;
+        let mut cx = x;
+        self.text(rt, label, cx, y, 44.0, &mono_b, &b.cyan, false)?;
+        cx += 44.0;
+        cx += self.segments(rt, cx, by, 10, now)? + 6.0;
+        self.text(rt, now_s, cx, y, 120.0, &mono, &b.text, false)?;
+        cx += self.measure_with(now_s, &mono) + 16.0;
+        self.text(rt, "▸ bez:", cx, y, 60.0, &mono, &b.dim, false)?;
+        cx += self.measure_with("▸ bez:", &mono) + 6.0;
+        cx += self.seg_marked(rt, cx, by, 10, would, ERR)? + 6.0;
+        self.text(rt, would_s, cx, y, 120.0, &mono, &b.err, false)?;
+        Ok(())
+    }
+
+    /// Przycisk jak w Win95: wypukła ramka + tekst (akcja przy aplikacji).
+    fn opt_button(&self, rt: &ID2D1RenderTarget, r: &Rc, label: &str, hot: bool, on: bool, b: &Brushes) -> Result<()> {
+        unsafe { rt.FillRectangle(&rect(r.x, r.y, r.w, r.h), if hot { &b.tab_on } else { &b.bar }) };
+        self.bevel(rt, r, false, b);
+        let tw = self.measure(label, false);
+        let tx = r.x + (r.w - tw) / 2.0;
+        self.text(rt, label, tx, r.y + (r.h - self.line_h) / 2.0, tw + 2.0, &self.f_body.clone(), if on { &b.link } else { &b.dim }, hot)?;
+        Ok(())
+    }
+
+    /// Rozwinięta zakładka optymalizacji: oszczędności, „teraz vs bez" i lista aplikacji tła.
+    fn draw_opt_panel(&self, rt: &ID2D1RenderTarget, page: &Page, l: &Layout, ui: &Ui, b: &Brushes) -> Result<()> {
+        let f = l.opt_panel;
+        let st = &page.status;
+        unsafe { rt.FillRectangle(&rect(f.x, f.y, f.w, f.h), &b.bg) };
+        self.frame(rt, &f, "Optymalizacja zasobów tła", b)?;
+        let mono = self.f_mono.clone();
+        // nagłówek: oszczędności + podpowiedź
+        let head = format!("Zaoszczędzono {}", stats::mb(st.opt_saved));
+        self.text(rt, &head, f.x + 16.0, f.y + 12.0, 400.0, &self.f_h1.clone(), &b.yellow, false)?;
+        let hw = self.measure_with(&head, &self.f_h1);
+        let sub = format!("· {} aplikacji ograniczonych · {} w indeksie", st.opt_count, crate::app::group_digits(ui.index_count));
+        self.text(rt, &sub, f.x + 16.0 + hw + 14.0, f.y + 20.0, 600.0, &self.f_body.clone(), &b.dim, false)?;
+        let hint = "scroll w górę chowa";
+        let hwd = self.measure_with(hint, &mono);
+        self.text(rt, hint, f.right() - hwd - 16.0, f.y + 14.0, hwd + 4.0, &mono, &b.dim, false)?;
+        // porównywarki CPU i RAM
+        let cpu_would = (st.cpu + st.opt_would_cpu).min(1.0);
+        let would_ram = st.ram_used + st.opt_saved;
+        let ram_frac = would_ram as f32 / st.ram_total.max(1) as f32;
+        let my = f.y + 50.0;
+        self.opt_meter(rt, "CPU", f.x + 16.0, my, st.cpu, cpu_would, &format!("{:>3}%", (st.cpu * 100.0).round() as u32), &format!("~{:>3}%", (cpu_would * 100.0).round() as u32), b)?;
+        let ram = st.ram_used as f32 / st.ram_total.max(1) as f32;
+        self.opt_meter(rt, "RAM", f.x + 16.0, my + self.mono_h + 7.0, ram, ram_frac, &stats::gb(st.ram_used), &format!("~{}", stats::gb(would_ram)), b)?;
+        // nagłówek listy
+        let list_top = f.y + 116.0;
+        let lx = f.x + 16.0;
+        let col_ram = f.x + f.w * 0.44;
+        let col_cpu = f.x + f.w * 0.52;
+        let col_stan = f.x + f.w * 0.60;
+        let mb = self.f_mono_bold.clone();
+        self.text(rt, "Aplikacja w tle", lx, list_top - 22.0, 300.0, &mb, &b.dim, false)?;
+        self.text(rt, "RAM", col_ram, list_top - 22.0, 80.0, &mb, &b.dim, false)?;
+        self.text(rt, "CPU", col_cpu, list_top - 22.0, 80.0, &mb, &b.dim, false)?;
+        self.text(rt, "Stan optymalizacji", col_stan, list_top - 22.0, 220.0, &mb, &b.dim, false)?;
+        self.hline(rt, lx, f.right() - 14.0, list_top - 3.0, &b.frame);
+        if page.opt_apps.is_empty() {
+            self.text(rt, "Brak aplikacji tła do ograniczenia (albo optymalizacja dopiero zbiera dane).", lx, list_top + 6.0, f.w - 32.0, &self.f_body.clone(), &b.dim, false)?;
+            return Ok(());
+        }
+        let n = l.opt_limit.len();
+        for (i, a) in page.opt_apps.iter().take(n).enumerate() {
+            let lim = l.opt_limit[i];
+            let row_y = lim.y;
+            if i % 2 == 1 {
+                unsafe { rt.FillRectangle(&rect(lx - 6.0, row_y - 2.0, f.w - 20.0, lim.h + 4.0), &b.stripe) };
+            }
+            let ty = row_y + (lim.h - self.line_h) / 2.0;
+            // kropka koloru wg poziomu + nazwa
+            let dot = match a.level {
+                0 => 0x55FF55,
+                1 => YELLOW,
+                _ => 0xFF8A8A,
+            };
+            unsafe {
+                let c = rt.CreateSolidColorBrush(&rgb(dot), None)?;
+                rt.FillEllipse(&D2D1_ELLIPSE { point: Vector2 { X: lx + 5.0, Y: row_y + lim.h / 2.0 }, radiusX: 4.0, radiusY: 4.0 }, &c);
+            }
+            self.text(rt, &a.name, lx + 16.0, ty, col_ram - lx - 20.0, &self.f_body.clone(), &b.text, false)?;
+            self.text(rt, &stats::mb(a.ws), col_ram, row_y + (lim.h - self.mono_h) / 2.0, 80.0, &mono, &b.text, false)?;
+            self.text(rt, &format!("{:.0}%", a.cpu * 100.0), col_cpu, row_y + (lim.h - self.mono_h) / 2.0, 70.0, &mono, &b.text, false)?;
+            let (stan, col) = match a.level {
+                0 => ("pełne zasoby", &b.dim),
+                1 => ("EcoQoS", &b.cyan),
+                _ => ("EcoQoS + RAM", &b.cyan),
+            };
+            self.text(rt, stan, col_stan, ty, (lim.x - col_stan - 12.0).max(40.0), &self.f_body.clone(), col, false)?;
+            // przyciski
+            if a.level > 0 {
+                self.opt_button(rt, &l.opt_limit[i], "Ograniczone", false, false, b)?;
+            } else {
+                self.opt_button(rt, &l.opt_limit[i], "Ogranicz teraz", ui.hover == Target::OptLimit(i), true, b)?;
+            }
+            self.opt_button(rt, &l.opt_min[i], "Minimalizuj", ui.hover == Target::OptMinimize(i), true, b)?;
         }
         Ok(())
     }
@@ -1352,6 +1526,12 @@ impl Renderer {
 }
 
 /// Wnetrze ramki (pod tytulem), wyrownane do pikseli.
+/// Naglowek panelu projektow (ta sama szerokosc w ukladzie i przy rysowaniu).
+fn kinds_title(page: &Page) -> String {
+    let total: usize = page.kinds.iter().map(|k| k.1).sum();
+    if page.scan.is_some() { "Projekty na dysku".to_string() } else { format!("Projekty na dysku ({})", total) }
+}
+
 fn inner(frame: &Rc, s: f32) -> Rc {
     let snap = |v: f32| (v * s).round() / s;
     let x = snap(frame.x + 7.0);

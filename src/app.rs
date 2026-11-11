@@ -138,7 +138,17 @@ pub struct App {
     last_click: Option<(String, std::time::Instant)>,
     /// Filtr "projekty danego jezyka na dysku" (klik w panelu projektow).
     pub kind: Option<usize>,
+    /// Panel projektow i miejsca (prawa czesc = okno silnika C#).
+    pub disk: bool,
+    /// Ten widok ma przejac panel przy najblizszym malowaniu.
+    disk_claim: bool,
+    /// Panel zabralo inne okno Indeksu.
+    panel_lost: bool,
+    /// Ostatnie polozenie panelu: (widok, x, y, szer, wys) w pikselach.
+    panel_rect: Option<(isize, i32, i32, i32, i32)>,
     pub settings_open: bool,
+    /// Pulpit: rozwiniety wiersz „bez optymalizacji" pod paskiem wydajnosci.
+    pub opt_reveal: bool,
     /// Przeciagany suwak w ustawieniach.
     pub slider_drag: Option<usize>,
     /// Okna odpowiadajace przyciskom aplikacji.
@@ -192,6 +202,8 @@ impl App {
                 langs: Vec::new(),
                 head_info: String::new(),
                 folders_note: String::new(),
+                folders_title: String::new(),
+                disk: false,
                 folders: Vec::new(),
                 files: Vec::new(),
                 table: Vec::new(),
@@ -202,6 +214,8 @@ impl App {
                 kinds: Vec::new(),
                 kind_active: None,
                 settings: None,
+                opt_reveal: false,
+                opt_apps: Vec::new(),
             },
             layout: Layout::default(),
             layout_dirty: true,
@@ -227,7 +241,12 @@ impl App {
             collapsed: HashSet::new(),
             last_click: None,
             kind: None,
+            disk: false,
+            disk_claim: false,
+            panel_lost: false,
+            panel_rect: None,
             settings_open: false,
+            opt_reveal: false,
             slider_drag: None,
             app_hwnds: Vec::new(),
             stats: Stats::new(),
@@ -518,6 +537,27 @@ impl App {
             if col != SortCol::Name || !asc {
                 sort_rows(&mut table, col, asc);
             }
+        } else if self.disk {
+            // panel miejsca: z lewej wszystkie projekty od najwiekszych, reszte rysuje C#
+            actions.push(Link { text: "[Zamknij panel]".into(), icon: None, target: LinkTarget::CloseSearch, style: LinkStyle::Link });
+            let list: Vec<_> = crate::katalog::projects().unwrap_or_default().into_iter().filter(|p| self.kind.map(|k| p.kind == k).unwrap_or(true)).collect();
+            let total: u64 = list.iter().map(|p| p.bytes).sum();
+            title = "Projekty na dysku".to_string();
+            subtitle = if list.is_empty() && crate::katalog::scanning() {
+                "Silnik C++ przeszukuje dysk…".to_string()
+            } else {
+                format!("{}  ·  {} bez śmieci  ·  klik pokazuje szczegóły", pl(list.len(), "projekt", "projekty", "projektów"), fsx::fmt_size(total))
+            };
+            tree_title = "Struktura".to_string();
+            page_tree = self.build_tree();
+            for p in list {
+                let item = Item { name: fsx::last_name(&p.path), is_dir: true, size: p.bytes, mtime: 0, attrs: 0, label: None, folder: fsx::parent(&p.path) };
+                let mut row = self.make_row(item, p.path, false);
+                row.tech = Some(p.kind);
+                row.icon = profiles::icon(p.kind);
+                row.ago = profiles::ago(p.newest);
+                folders.push(row);
+            }
         } else if let Some(kind) = self.kind {
             // projekty jednego jezyka z calego dysku
             actions.push(Link { text: "[Zamknij filtr]".into(), icon: None, target: LinkTarget::CloseSearch, style: LinkStyle::Link });
@@ -565,7 +605,14 @@ impl App {
             }
         }
         let status = std::mem::take(&mut self.page.status);
+        let folders_title = match (self.disk, self.kind) {
+            (_, Some(k)) => format!("Projekty i foldery ({})", profiles::LANGS[k].name),
+            (true, None) => "Projekty i foldery (wszystkie)".to_string(),
+            (false, None) => format!("Projekty i foldery ({})", title),
+        };
         self.page = Page {
+            folders_title,
+            disk: self.disk,
             search: self.search.is_some(),
             drives,
             explorer,
@@ -590,6 +637,8 @@ impl App {
             kind_active: self.kind,
             // okno ustawien musi przetrwac przebudowe strony (wyniki projektow, zmiany w folderze...)
             settings: if self.settings_open { Some(self.settings_items()) } else { None },
+            opt_reveal: self.opt_reveal,
+            opt_apps: Vec::new(),
         };
         self.fill_status();
         self.fill_kinds();
@@ -598,7 +647,7 @@ impl App {
         }
         if self.search.is_none() {
             // silnik projektow: technologia i data zmiany kazdego podfolderu
-            let mut want: Vec<String> = self.page.folders.iter().map(|r| r.full.clone()).collect();
+            let mut want: Vec<String> = if self.disk { Vec::new() } else { self.page.folders.iter().map(|r| r.full.clone()).collect() };
             want.extend(self.page.tree.iter().filter(|n| n.toggle.is_some()).map(|n| n.path.clone()));
             if self.path != COMPUTER {
                 want.push(self.path.clone());
@@ -622,7 +671,9 @@ impl App {
         let mut changed = false;
         let mut counts: Vec<(usize, u32)> = Vec::new();
         let mut plain = 0u32;
-        for r in self.page.folders.iter_mut() {
+        // w panelu dysku technologie i daty przychodza z katalogu
+        let rows = if self.disk { &mut [][..] } else { &mut self.page.folders[..] };
+        for r in rows.iter_mut() {
             let (tech, ago) = match profiles::get(&r.full) {
                 Some(Some(p)) => {
                     match p.tech {
@@ -670,7 +721,7 @@ impl App {
             changed = true;
         }
         // naglowek: jezyki biezacego folderu (pasek jak na GitHubie)
-        if self.kind.is_some() {
+        if self.kind.is_some() || self.disk {
             self.page.langs.clear();
             self.page.head_info.clear();
         } else if let Some(Some(p)) = profiles::get(&self.path) {
@@ -714,6 +765,12 @@ impl App {
 
     fn fill_status(&mut self) {
         let s = &self.stats;
+        let opt = crate::optymalizator::savings();
+        // rozwinieta zakladka optymalizacji: lista aplikacji z silnika
+        self.page.opt_apps = crate::optymalizator::usage()
+            .into_iter()
+            .map(|a| crate::page::OptApp { pid: a.pid, hwnd: a.hwnd, name: a.exe, ws: a.ws, cpu: a.cpu, level: a.level })
+            .collect();
         self.page.status = StatusLine {
             drives: s.drives.iter().map(|d| (d.root.clone(), d.total, d.free)).collect(),
             cpu: s.cpu,
@@ -722,6 +779,10 @@ impl App {
             ram_total: s.ram_total,
             own: s.own,
             own_cpu: s.own_cpu,
+            opt_on: self.cfg.optimize,
+            opt_saved: opt.saved_ram,
+            opt_count: opt.count,
+            opt_would_cpu: opt.would_cpu,
         };
     }
 
@@ -757,6 +818,18 @@ impl App {
         }
     }
 
+    /// Pulpit: scroll w pustym miejscu rozwija / chowa zakladke optymalizacji.
+    pub fn toggle_opt_reveal(&mut self, show: bool) -> bool {
+        if self.opt_reveal == show || !self.cfg.optimize {
+            return false;
+        }
+        self.opt_reveal = show;
+        self.page.opt_reveal = show;
+        self.layout_dirty = true;
+        self.gen += 1;
+        true
+    }
+
     // ---------- nawigacja ----------
 
     pub fn navigate(&mut self, path: &str) {
@@ -787,6 +860,7 @@ impl App {
         }
         self.search = None;
         self.kind = None;
+        self.disk = false;
         self.path = path;
         self.scroll = scroll;
         self.scroll[Region::Tree as usize] = tree_scroll;
@@ -799,6 +873,10 @@ impl App {
     }
 
     pub fn back(&mut self) {
+        if self.disk {
+            self.set_disk(false);
+            return;
+        }
         if self.kind.is_some() {
             self.set_kind(None);
             return;
@@ -1044,6 +1122,20 @@ impl App {
                 let open = !self.settings_open;
                 self.toggle_settings(open);
             }
+            Target::Disk => {
+                let on = !self.disk || self.panel_lost;
+                self.set_disk(on);
+            }
+            Target::OptLimit(i) => {
+                if let Some(a) = self.page.opt_apps.get(i) {
+                    crate::optymalizator::force_limit(a.pid);
+                }
+            }
+            Target::OptMinimize(i) => {
+                if let Some(a) = self.page.opt_apps.get(i).filter(|a| a.hwnd != 0) {
+                    crate::winlist::minimize(windows::Win32::Foundation::HWND(a.hwnd as *mut _));
+                }
+            }
             Target::SetItem(i) => {
                 if matches!(self.page.settings.as_ref().and_then(|s| s.get(i)), Some((_, crate::page::SetKind::Toggle(_)))) {
                     self.set_setting(i, None);
@@ -1057,7 +1149,9 @@ impl App {
                 }
                 Some(LinkTarget::Explorer) => crate::shell::explorer_folder(&self.current_dir().unwrap_or_default()),
                 Some(LinkTarget::CloseSearch) => {
-                    if self.kind.is_some() {
+                    if self.disk {
+                        self.set_disk(false);
+                    } else if self.kind.is_some() {
                         self.set_kind(None);
                     } else {
                         self.close_search();
@@ -1085,6 +1179,12 @@ impl App {
             }
             Target::Folder(_) | Target::File(_) | Target::Row(_) => {
                 let Some((full, is_dir)) = self.path_of(t) else { return };
+                // w panelu dysku klik pokazuje projekt po prawej zamiast wchodzic do folderu
+                if self.disk && !in_explorer {
+                    self.selected = t;
+                    crate::katalog::panel_project(&full);
+                    return;
+                }
                 if is_dir {
                     self.last_click = Some((full.clone(), std::time::Instant::now()));
                 }
@@ -1169,6 +1269,9 @@ impl App {
             Target::App(i) => l.apps.get(i).copied(),
             Target::Kind(i) => l.kinds.get(i).copied(),
             Target::Gear => Some(l.gear),
+            Target::Disk => Some(l.kinds_title),
+            Target::OptLimit(i) => l.opt_limit.get(i).copied(),
+            Target::OptMinimize(i) => l.opt_min.get(i).copied(),
             Target::SetItem(_) | Target::SetClose => Some(l.dialog),
             Target::Explorer => Some(l.explorer),
             Target::Downloads => Some(l.downloads),
@@ -1304,6 +1407,19 @@ impl App {
         if let Some(i) = l.apps.iter().position(|r| r.contains(x, y)) {
             return Target::App(i);
         }
+        // rozwinieta zakladka optymalizacji przechwytuje klikniecia (jest na wierzchu)
+        if self.page.opt_reveal && l.opt_panel.w > 0.0 && l.opt_panel.contains(x, y) {
+            if let Some(i) = l.opt_limit.iter().position(|r| r.w > 0.0 && r.contains(x, y)) {
+                return Target::OptLimit(i);
+            }
+            if let Some(i) = l.opt_min.iter().position(|r| r.w > 0.0 && r.contains(x, y)) {
+                return Target::OptMinimize(i);
+            }
+            return Target::None;
+        }
+        if l.kinds_title.contains(x, y) {
+            return Target::Disk;
+        }
         if let Some(i) = l.kinds.iter().position(|r| r.contains(x, y)) {
             return Target::Kind(i);
         }
@@ -1430,7 +1546,49 @@ impl App {
         self.selected = Target::None;
         self.scroll[Region::Folders as usize] = 0.0;
         self.scroll[Region::Files as usize] = 0.0;
+        if self.disk {
+            crate::katalog::panel_language(self.kind);
+        }
         self.rebuild();
+    }
+
+    /// Otwiera / zamyka panel projektow i miejsca.
+    pub fn set_disk(&mut self, on: bool) {
+        self.disk = on;
+        self.disk_claim = on;
+        self.kind = None;
+        self.search = None;
+        self.selected = Target::None;
+        self.scroll[Region::Folders as usize] = 0.0;
+        if on {
+            crate::katalog::panel_language(None);
+        }
+        self.rebuild();
+    }
+
+    /// Dopasowuje okno panelu C# do ukladu tego widoku. Wolane przy malowaniu.
+    pub fn sync_panel(&mut self, view: HWND) {
+        if self.disk_claim {
+            self.disk_claim = false;
+            crate::katalog::panel_claim(view, self.notify);
+            self.panel_rect = None;
+        }
+        if !crate::katalog::panel_owned_by(view) {
+            self.panel_lost = self.disk;
+            return;
+        }
+        self.panel_lost = false;
+        // okno ustawien rysuje Rust, wiec panel nie moze go zaslaniac
+        if self.disk && !self.settings_open {
+            let (s, r) = (self.dpi / 96.0, self.layout.files_frame);
+            let px = |v: f32| (v * s).round() as i32;
+            let rect = (view.0 as isize, px(r.x), px(r.y), px(r.right()) - px(r.x), px(r.bottom()) - px(r.y));
+            if self.panel_rect != Some(rect) && crate::katalog::panel_place(view, rect.1, rect.2, rect.3, rect.4) {
+                self.panel_rect = Some(rect);
+            }
+        } else if self.panel_rect.take().is_some() {
+            crate::katalog::panel_hide(view);
+        }
     }
 
     // ---------- otwarte aplikacje ----------
@@ -1473,6 +1631,7 @@ impl App {
             ("Nowy plik w Pobranych otwiera się w Indeksie".into(), Toggle(c.downloads_open)),
             ("Nakładka także nad oknem zmaksymalizowanym".into(), Toggle(c.overlay_maximized)),
             ("Nakładkę rysuje silnik C# (wyłączone = Rust)".into(), Toggle(c.overlay_cs)),
+            ("Ogranicz zasoby bezczynnych aplikacji (EcoQoS)".into(), Toggle(c.optimize)),
             ("Uruchamiaj Indeks razem z Windows".into(), Toggle(crate::autostart::enabled())),
         ]
     }
@@ -1501,7 +1660,14 @@ impl App {
             (7, _) => c.downloads_open = !c.downloads_open,
             (8, _) => c.overlay_maximized = !c.overlay_maximized,
             (9, _) => c.overlay_cs = !c.overlay_cs,
-            (10, _) => crate::autostart::set(!crate::autostart::enabled()),
+            (10, _) => {
+                c.optimize = !c.optimize;
+                if !c.optimize {
+                    crate::optymalizator::disable_all();
+                }
+                self.opt_reveal = false;
+            }
+            (11, _) => crate::autostart::set(!crate::autostart::enabled()),
             _ => return,
         }
         if value.is_none() || self.slider_drag.is_none() {

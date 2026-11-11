@@ -6,7 +6,7 @@ Indeks zamienia pulpit Windows w szybki katalog całego komputera. Zamiast przek
 
 To natywna aplikacja Windows napisana w Rust. Rysuje własny interfejs bez Electrona i osadzonej przeglądarki, a pliki pozostawia w ich dotychczasowych lokalizacjach.
 
-![Zrzut ekranu aplikacji Indeks](https://cdn.discordapp.com/attachments/703557136793337926/1569916654656159764/image.png?ex=6af53252&is=6af3e0d2&hm=334d5071a762398f0e7f4e0884edd3fa070dfbf249c7fd1c5ca00f5bd6cce273&)
+![Zrzut ekranu aplikacji Indeks](https://cdn.discordapp.com/attachments/703557136793337926/1569912531881820210/image.png?ex=6af52e7b&is=6af3dcfb&hm=fd0185c34b4ff9f27a5514c011677fb0aca7d4c161645711b6d2b76776e87f23)
 
 ## Interfejs i kierunek wizualny
 
@@ -37,6 +37,12 @@ Wyszukiwanie działa na zbudowanym indeksie nazw, także dla polskich znaków. W
 Indeks rozpoznaje foldery projektów, użyte języki i czas ostatniej zmiany w poddrzewie. Podsumowanie języków obejmuje projekty znalezione w indeksie. Kliknięcie języka filtruje listę; `Esc` zamyka filtr. Można też dodać kolejne korzenie, na przykład `D:\`, w ustawieniach.
 
 Skan pomija między innymi `AppData`, foldery zaczynające się od kropki i podfoldery rozpoznanego projektu. Rozpoznaje również kontenery zawierające wiele projektów, takie jak katalog z wieloma paczkami.
+
+### Odzyskać miejsce na dysku
+
+Kliknięcie nagłówka **Projekty na dysku** otwiera panel z dwoma widokami: **Wszystkie projekty** (rozmiary i udział języków) oraz **Czyszczenie dysku** (`node_modules`, `target`, `Debug`/`Release`, `bin`/`obj`, Temp, pliki robocze Claude'a i Codexa, pamięć podręczna pakietów, logi — od najstarszych).
+
+Pracę dzielą trzy silniki: **C++** (`indeks-katalog.exe`) raz przeszukuje dysk i zapisuje katalog, **Rust** w tle nasłuchuje tylko nazw nowych folderów i zleca przeliczenie jednego projektu, a **C#** (`indeks-panel.exe`) wyświetla gotowy katalog. Usuwanie jest trwałe, wymaga potwierdzenia, obejmuje wyłącznie pozycje z katalogu i nie wchodzi w dowiązania. Historia rozmów, pamięć, ustawienia i klucze narzędzi AI nie są skanowane jako śmieci.
 
 ### Nawigować po wielu miejscach naraz
 

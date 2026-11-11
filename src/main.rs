@@ -16,6 +16,8 @@ mod downloads;
 mod desktop;
 mod fsx;
 mod icons;
+mod katalog;
+mod optymalizator;
 mod overlay;
 mod page;
 mod profiles;
@@ -132,6 +134,7 @@ fn main() {
                 tree_click: arg_value(&args, "--klik-drzewo").and_then(|v| v.parse().ok()),
                 demo: args.iter().any(|a| a == "--demo"),
                 kind: arg_value(&args, "--rodzaj").and_then(|v| v.parse().ok()),
+                disk: args.iter().any(|a| a == "--dysk"),
             };
             if let Err(e) = snapshot::run(o) {
                 util::log(&format!("zrzut: {}", e.message()));

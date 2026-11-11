@@ -40,6 +40,8 @@ pub struct Config {
     pub overlay_cs: bool,
     /// Liczba plikow z poprzedniego indeksowania (do procentu postepu).
     pub last_index: u32,
+    /// Ograniczanie zasobow bezczynnych aplikacji (EcoQoS). Domyslnie wylaczone.
+    pub optimize: bool,
 }
 
 pub const DEFAULT_SKIP: &[&str] = &[
@@ -77,6 +79,7 @@ impl Config {
             overlay_maximized: true,
             overlay_cs: true,
             last_index: 0,
+            optimize: false,
         };
         let mut had_file = false;
         let mut skip_set = false;
@@ -107,6 +110,7 @@ impl Config {
                     "nakladka_maks" => c.overlay_maximized = v == "1",
                     "nakladka_cs" => c.overlay_cs = v == "1",
                     "ostatni_indeks" => c.last_index = v.parse().unwrap_or(0),
+                    "optymalizuj" => c.optimize = v == "1",
                     _ => {}
                 }
             }
@@ -154,7 +158,7 @@ impl Config {
         s.push_str(&format!("pokaz_systemowe={}\n", self.show_protected as u8));
         s.push_str(&format!("nakladka_maks={}\nnakladka_cs={}\n", self.overlay_maximized as u8, self.overlay_cs as u8));
         s.push_str(&format!("nakladka={}\nnakladka_widocznosc={}\nnakladka_dyski={}\ndyski_widocznosc={}\n", self.overlay as u8, self.overlay_alpha, self.overlay_disks as u8, self.disks_alpha));
-        s.push_str(&format!("klik_chowa_okna={}\nwin_minimalizuje={}\npasek_aplikacji={}\npobrane_otwieraj={}\nostatni_indeks={}\n", self.click_hides as u8, self.win_minimizes as u8, self.apps_row as u8, self.downloads_open as u8, self.last_index));
+        s.push_str(&format!("klik_chowa_okna={}\nwin_minimalizuje={}\npasek_aplikacji={}\npobrane_otwieraj={}\noptymalizuj={}\nostatni_indeks={}\n", self.click_hides as u8, self.win_minimizes as u8, self.apps_row as u8, self.downloads_open as u8, self.optimize as u8, self.last_index));
         if let Some(h) = self.icons_were_hidden {
             s.push_str(&format!("ikony_przed={}\n", h as u8));
         }

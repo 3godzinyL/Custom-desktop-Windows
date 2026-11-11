@@ -428,7 +428,8 @@ uint32_t ix_find_projects(ix_index* ix, uint32_t* out_ids, uint8_t* out_kind, ui
         if (m & (1u << 1)) return 2;                                   // Cargo.toml -> Rust
         if (m & (1u << 0)) return (m & (1u << 13)) ? 1 : 31;           // package.json -> TS / Node
         if (m & (1u << 5)) return 5;                                   // .csproj -> C#
-        if (m & ((1u << 2) | (1u << 4) | (1u << 3))) return 3;         // CMake / vcxproj / sln -> C++
+        if (m & ((1u << 2) | (1u << 4))) return 3;                     // CMake / vcxproj -> C++
+        if (m & (1u << 3)) return 5;                                   // sam .sln to zwykle C#
         if (m & (1u << 6)) return 6;                                   // Python
         if (m & (1u << 7)) return 7;                                   // Go
         if (m & (1u << 8)) return (m & B_KT) ? 9 : 8;                  // Gradle/Maven -> Kotlin / Java

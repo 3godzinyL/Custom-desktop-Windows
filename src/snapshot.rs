@@ -38,6 +38,8 @@ pub struct Opts {
     pub tree_click: Option<usize>,
     /// Bez przyciskow otwartych aplikacji (prywatne tytuly okien) - zrzuty do README.
     pub demo: bool,
+    /// Panel "Projekty na dysku" (lista z katalogu; prawa czesc rysuje indeks-panel.exe --zrzut).
+    pub disk: bool,
 }
 
 pub fn run(o: Opts) -> Result<()> {
@@ -53,7 +55,12 @@ pub fn run(o: Opts) -> Result<()> {
         }
     }
     crate::profiles::start(HWND::default());
+    crate::katalog::start_light(HWND::default());
     let mut app = App::new(cfg, HWND::default())?;
+    if o.disk {
+        app.fill_kinds();
+        app.set_disk(true);
+    }
     if let Some(q) = &o.query {
         for ch in q.chars() {
             app.search_input(ch);

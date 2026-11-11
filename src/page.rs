@@ -73,6 +73,11 @@ pub enum Target {
     App(usize),
     Kind(usize),
     Gear,
+    /// Naglowek "Projekty na dysku": otwiera panel projektow i miejsca.
+    Disk,
+    /// Rozwinieta zakladka optymalizacji: przyciski przy aplikacji.
+    OptLimit(usize),
+    OptMinimize(usize),
     SetItem(usize),
     SetClose,
 }
@@ -129,6 +134,11 @@ pub struct StatusLine {
     pub ram_total: u64,
     pub own: u64,
     pub own_cpu: f32,
+    /// Optymalizacja bezczynnych aplikacji: zwolniony RAM, liczba i szacowane CPU bez niej.
+    pub opt_on: bool,
+    pub opt_saved: u64,
+    pub opt_count: u32,
+    pub opt_would_cpu: f32,
 }
 
 pub struct Page {
@@ -148,6 +158,10 @@ pub struct Page {
     pub head_info: String,
     /// Podsumowanie w dolnej ramce listy folderow ("Node 12 · Rust 5").
     pub folders_note: String,
+    /// Tytul ramki listy: "Projekty i foldery (nazwa otwartego folderu)".
+    pub folders_title: String,
+    /// Panel projektow i miejsca: prawa czesc nalezy do okna silnika C#.
+    pub disk: bool,
     pub folders: Vec<Row>,
     pub files: Vec<Row>,
     pub table: Vec<Row>,
@@ -161,6 +175,20 @@ pub struct Page {
     pub kind_active: Option<usize>,
     /// Okno ustawien: (etykieta, wartosc) - przelacznik (0/1) albo suwak (0..100).
     pub settings: Option<Vec<(String, SetKind)>>,
+    /// Rozwinieta zakladka optymalizacji (pulpit, scroll w dol) i jej aplikacje.
+    pub opt_reveal: bool,
+    pub opt_apps: Vec<OptApp>,
+}
+
+/// Aplikacja w rozwijanej zakladce optymalizacji.
+#[derive(Clone)]
+pub struct OptApp {
+    pub pid: u32,
+    pub hwnd: isize,
+    pub name: String,
+    pub ws: u64,
+    pub cpu: f32,
+    pub level: u8,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
@@ -229,6 +257,7 @@ pub struct Layout {
     pub content: [f32; 4],
     /// Panel projektow na dysku (pod drzewem i lista) i jego przyciski jezykow.
     pub kinds_frame: Rc,
+    pub kinds_title: Rc,
     pub kinds: Vec<Rc>,
     /// Rzad przyciskow aplikacji pod paskiem wydajnosci.
     pub apps_row: Rc,
@@ -239,6 +268,10 @@ pub struct Layout {
     pub dialog_close: Rc,
     pub set_rows: Vec<Rc>,
     pub set_tracks: Vec<Rc>,
+    /// Rozwinieta zakladka optymalizacji: ramka panelu i przyciski przy aplikacjach.
+    pub opt_panel: Rc,
+    pub opt_limit: Vec<Rc>,
+    pub opt_min: Vec<Rc>,
     pub name: Col,
     pub folder: Col,
     pub size: Col,

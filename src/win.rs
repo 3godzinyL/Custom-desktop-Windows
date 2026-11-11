@@ -80,6 +80,7 @@ pub enum Mode {
 thread_local! {
     static APP: RefCell<Option<App>> = const { RefCell::new(None) };
     static MODE: Cell<Mode> = const { Cell::new(Mode::Desktop) };
+    static OPT_LAST: Cell<Option<std::time::Instant>> = const { Cell::new(None) };
     static CTL: Cell<isize> = const { Cell::new(0) };
     static VIEW: Cell<isize> = const { Cell::new(0) };
     static HOST: Cell<isize> = const { Cell::new(0) };
@@ -313,6 +314,12 @@ fn run_inner(mode: Mode, start_folder: Option<String>, extra: bool) -> windows::
                 search::start(roots, cfg.skip.clone(), ctl);
             }
             crate::profiles::start(ctl);
+            // skanowanie i obserwator tylko w pulpicie; samodzielne okno czyta gotowy katalog
+            if mode == Mode::Desktop {
+                crate::katalog::start(ctl);
+            } else {
+                crate::katalog::start_light(ctl);
+            }
         }
         let mut app = App::new(cfg, ctl)?;
         // w oknie folder/plik otwieramy dopiero, gdy okno ma rozmiar (przewiniecie do pliku)
@@ -346,6 +353,12 @@ fn run_inner(mode: Mode, start_folder: Option<String>, extra: bool) -> windows::
                     with_app(|a| a.open_path(&f));
                     let _ = InvalidateRect(Some(v), None, false);
                     crate::winlist::activate(v.0 as isize);
+                }
+                // INDEKS_DYSK: okno startuje od razu w panelu projektow (skroty, testy)
+                if !extra && std::env::var_os("INDEKS_DYSK").is_some() {
+                    sync_view_size(v);
+                    with_app(|a| a.set_disk(true));
+                    let _ = InvalidateRect(Some(v), None, false);
                 }
             }
         }
@@ -389,7 +402,7 @@ fn create_view(parent: Option<HWND>) -> windows::core::Result<HWND> {
                     WINDOW_EX_STYLE::default(),
                     VIEW_CLASS,
                     w!("Indeks"),
-                    WS_OVERLAPPEDWINDOW | WS_VISIBLE,
+                    WS_OVERLAPPEDWINDOW | WS_VISIBLE | WS_CLIPCHILDREN,
                     CW_USEDEFAULT, CW_USEDEFAULT, 1400, 900,
                     None,
                     None,
@@ -493,6 +506,19 @@ fn update_stats(force: bool) {
     if MODE.with(|m| m.get()) == Mode::Desktop {
         manage_cs_overlay(want_cs);
     }
+    // optymalizacja bezczynnych aplikacji liczy sie na pulpicie, nawet gdy jest zakryty
+    // (INDEKS_OPT_TEST pozwala policzyc ja tez w oknie --okno do zrzutow zakladki)
+    if MODE.with(|m| m.get()) == Mode::Desktop || std::env::var_os("INDEKS_OPT_TEST").is_some() {
+        let enabled = with_app(|a| a.cfg.optimize).unwrap_or(false);
+        let dt = OPT_LAST.with(|c| {
+            let now = std::time::Instant::now();
+            let dt = c.get().map(|t| now.duration_since(t).as_secs_f32()).unwrap_or(2.0);
+            c.set(Some(now));
+            dt
+        })
+        .clamp(0.5, 30.0);
+        crate::optymalizator::tick(enabled, dt);
+    }
     let overlay_on = with_app(|a| a.cfg.overlay).unwrap_or(false);
     let desk = force || desktop_visible();
     let show_overlay = overlay_on && fs.is_some() && MODE.with(|m| m.get()) == Mode::Desktop && !cs_overlay_alive();
@@ -569,6 +595,8 @@ fn shutdown(restore: bool) {
     if QUITTING.with(|q| q.replace(true)) {
         return;
     }
+    // zdejmij ograniczenia z aplikacji, zanim Indeks zniknie
+    crate::optymalizator::disable_all();
     let ctl = h(CTL.with(|c| c.get()));
     unsafe {
         let _ = KillTimer(Some(ctl), T_CHECK);
@@ -663,7 +691,10 @@ unsafe extern "system" fn ctl_proc(hwnd: HWND, msg: u32, wp: WPARAM, lp: LPARAM)
         }
         WM_COPYDATA => {
             let cd = unsafe { &*(lp.0 as *const CopyData) };
-            if cd.data == COPY_WINDOW && !cd.ptr.is_null() {
+            if cd.data == crate::katalog::COPY_PANEL && !cd.ptr.is_null() {
+                let s = unsafe { std::slice::from_raw_parts(cd.ptr as *const u16, cd.len as usize / 2) };
+                crate::katalog::from_panel(String::from_utf16_lossy(s).trim_end_matches('\0'));
+            } else if cd.data == COPY_WINDOW && !cd.ptr.is_null() {
                 let s = unsafe { std::slice::from_raw_parts(cd.ptr as *const u16, cd.len as usize / 2) };
                 open_window(String::from_utf16_lossy(s).trim_end_matches('\0').to_string());
             } else if cd.data == COPY_OPEN && !cd.ptr.is_null() {
@@ -682,6 +713,10 @@ unsafe extern "system" fn ctl_proc(hwnd: HWND, msg: u32, wp: WPARAM, lp: LPARAM)
         m if m == crate::profiles::WM_APP_PROFILE => {
             // wp=1: skan projektow na dysku gotowy
             let changed = with_app(|a| {
+                // nowy katalog: lista projektow w panelu tez sie zmienia
+                if wp.0 == 1 && a.disk {
+                    a.rebuild();
+                }
                 a.fill_kinds();
                 a.fill_profiles() || wp.0 == 1
             });
@@ -946,16 +981,24 @@ unsafe extern "system" fn view_proc(hwnd: HWND, msg: u32, wp: WPARAM, lp: LPARAM
         WM_MOUSEWHEEL => {
             let delta = ((wp.0 >> 16) & 0xFFFF) as i16 as f32 / 120.0;
             let b = before();
-            with_app(|a| {
+            let reveal = with_app(|a| {
+                let mut changed = false;
                 if let Some((x, y)) = cursor_dip(hwnd) {
-                    if let Some(r) = a.region_at(x, y) {
-                        a.wheel(r, delta);
+                    match a.region_at(x, y) {
+                        Some(r) => a.wheel(r, delta),
+                        // scroll w pustym miejscu: w dol rozwija zakladke optymalizacji, w gore chowa
+                        None => changed = a.toggle_opt_reveal(delta < 0.0),
                     }
-                    // po przewinieciu kursor stoi nad innym elementem
                     a.hover = a.hit(x, y);
                 }
-            });
-            refresh(hwnd, b);
+                changed
+            })
+            .unwrap_or(false);
+            if reveal {
+                invalidate();
+            } else {
+                refresh(hwnd, b);
+            }
             LRESULT(0)
         }
         WM_RBUTTONUP => {
@@ -1000,6 +1043,8 @@ unsafe extern "system" fn view_proc(hwnd: HWND, msg: u32, wp: WPARAM, lp: LPARAM
         }
         WM_DESTROY => {
             with_app(|a| a.renderer.drop_target());
+            // panel C# jest dzieckiem widoku: odpiety przezyje zamkniecie tego okna
+            crate::katalog::panel_hide(hwnd);
             if VIEW.with(|c| c.get()) == hwnd.0 as isize {
                 VIEW.with(|c| c.set(0));
             }
@@ -1183,6 +1228,10 @@ fn sync_view_size(hwnd: HWND) {
 }
 
 fn paint(hwnd: HWND, hdc: HDC, area: RECT) {
+    with_app(|a| {
+        a.ensure_layout();
+        a.sync_panel(hwnd);
+    });
     if MODE.with(|m| m.get()) == Mode::Window {
         if let Some(t) = with_app(|a| a.page.title.clone()) {
             if TITLE.with(|c| *c.borrow() != t) {
