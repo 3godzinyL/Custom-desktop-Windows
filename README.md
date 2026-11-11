@@ -111,6 +111,8 @@ Win95), segmentowe paski w kolorach CGA. Bez Electrona i bez przeglądarki.
 ## Pliki
 
 - `INSTALUJ.cmd` – buduje, kopiuje do `%LOCALAPPDATA%\Programs\Indeks`, włącza autostart, uruchamia.
+- `START.bat` – uruchamia Indeks (zainstalowany, a bez instalacji - z `target\release`).
+- `STOP.bat` – zamyka Indeks razem z oknami i silnikiem nakładki; ikony Windows wracają, autostart bez zmian.
 - `PRZYWROC_PULPIT.cmd` – zamyka Indeks, wyłącza autostart, włącza ikony pulpitu.
 - Ustawienia: `%APPDATA%\Indeks\indeks.cfg` (`dom=`, `przypiety=`, `indeksuj=`, `pomijaj=`,
   `nakladka=`, `nakladka_widocznosc=`, `nakladka_dyski=`, `dyski_widocznosc=`, `klik_chowa_okna=`,

@@ -312,7 +312,7 @@ impl Renderer {
             .tree
             .iter()
             .filter_map(|n| n.tech.map(|t| (t, n.depth)))
-            .map(|(t, d)| self.measure_with(crate::profiles::LANGS[t].name, &mono) - d.saturating_sub(1) as f32 * 18.0)
+            .map(|(t, d)| self.measure_with(crate::profiles::LANGS[t].name, &mono) + 6.0 - d.saturating_sub(1) as f32 * 18.0)
             .fold(0.0, f32::max)
             .clamp(0.0, 120.0);
         // zebatka ustawien w prawym gornym rogu
@@ -375,7 +375,7 @@ impl Renderer {
         // koncza sie wczesniej, zeby nic na niego nie nachodzilo
         let kinds_h = snap(76.0);
         let upper = bottom - kinds_h - snap(10.0);
-        let tree_w = snap((w * 0.17).clamp(260.0, 360.0));
+        let tree_w = snap((w * 0.18).clamp(270.0, 380.0));
         l.tree_frame = Rc { x: snap(8.0), y: top, w: tree_w, h: upper - top };
         l.tree = inner(&l.tree_frame, s);
 
@@ -822,7 +822,7 @@ impl Renderer {
                 let name = crate::profiles::LANGS[t].name;
                 let mono = self.f_mono.clone();
                 let w = self.measure_with(name, &mono);
-                let end = bx(n.depth.saturating_sub(1)) - 2.0;
+                let end = bx(n.depth.saturating_sub(1)) - 8.0;
                 let lx = (end - w).max(v.x + 2.0);
                 unsafe { rt.FillRectangle(&rect(lx - 2.0, r.y + 2.0, end - lx + 3.0, r.h - 4.0), &b.bg) };
                 let br = self.lang_brush(rt, t)?;

@@ -173,6 +173,8 @@ sealed class Nakladka : Form
     readonly Cfg cfg = new Cfg();
     readonly N.WinEventProc onForeground;
     DateTime statsAt = DateTime.MinValue;
+    /// Monitor ostatniego okna na wierzchu (gra w wylacznym pelnym ekranie nie podaje okna).
+    IntPtr lastMonitor;
     string drawn = "";
     bool visible;
 
@@ -311,7 +313,22 @@ sealed class Nakladka : Form
         area = new N.RECT();
         monitor = IntPtr.Zero;
         IntPtr fg = N.GetForegroundWindow();
-        if (fg == IntPtr.Zero || fg == Handle || !N.IsWindowVisible(fg) || N.IsIconic(fg)) return false;
+        if (fg == IntPtr.Zero)
+        {
+            // gra w wylacznym pelnym ekranie Direct3D: Windows nie podaje okna na wierzchu
+            // (w dzienniku "Idle", stan=3) - nakladka na monitorze gry, bez aktywacji.
+            // Przy wlaczonej "optymalizacji pelnego ekranu" Windows ja pokaze.
+            int quns;
+            if (N.SHQueryUserNotificationState(out quns) != 0 || quns != 3) return false;
+            monitor = lastMonitor != IntPtr.Zero ? lastMonitor : N.MonitorFromPoint(new N.POINT(), 1);
+            var gm = new N.MONITORINFO();
+            gm.cbSize = Marshal.SizeOf(typeof(N.MONITORINFO));
+            if (!N.GetMonitorInfo(monitor, ref gm)) return false;
+            area = gm.rcMonitor;
+            return true;
+        }
+        if (fg == Handle || !N.IsWindowVisible(fg) || N.IsIconic(fg)) return false;
+        lastMonitor = N.MonitorFromWindow(fg, 2);
         switch (ClassOf(fg))
         {
             // pulpit (tam jest pasek Indeksu), pasek zadan, Start, okna Indeksu
@@ -458,6 +475,7 @@ static class N
     [DllImport("user32.dll", CharSet = CharSet.Unicode)] public static extern int GetClassName(IntPtr h, StringBuilder s, int n);
     [DllImport("user32.dll")] public static extern bool GetWindowRect(IntPtr h, out RECT r);
     [DllImport("user32.dll")] public static extern IntPtr MonitorFromWindow(IntPtr h, uint flags);
+    [DllImport("user32.dll")] public static extern IntPtr MonitorFromPoint(POINT pt, uint flags);
     [DllImport("user32.dll")] public static extern bool GetMonitorInfo(IntPtr m, ref MONITORINFO mi);
     [DllImport("shcore.dll")] public static extern int GetDpiForMonitor(IntPtr m, int type, out uint x, out uint y);
     [DllImport("user32.dll")] public static extern bool SetWindowPos(IntPtr h, IntPtr after, int x, int y, int cx, int cy, uint flags);

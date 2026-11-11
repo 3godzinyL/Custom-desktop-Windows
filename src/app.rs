@@ -1480,6 +1480,10 @@ impl App {
     pub fn toggle_settings(&mut self, open: bool) {
         self.settings_open = open;
         self.page.settings = if open { Some(self.settings_items()) } else { None };
+        // prostokat okna ustawien (i jego wiersze) liczy uklad - bez tego okno mialo
+        // rozmiar 0 do najblizszego przypadkowego przeliczenia i nie bylo go widac
+        self.layout_dirty = true;
+        self.ensure_layout();
         self.gen += 1;
     }
 
