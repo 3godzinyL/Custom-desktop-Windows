@@ -6,7 +6,7 @@ Indeks zamienia pulpit Windows w szybki katalog całego komputera. Zamiast przek
 
 To natywna aplikacja Windows napisana w Rust. Rysuje własny interfejs bez Electrona i osadzonej przeglądarki, a pliki pozostawia w ich dotychczasowych lokalizacjach.
 
-![Zrzut ekranu aplikacji Indeks](https://cdn.discordapp.com/attachments/703557136793337926/1569912531881820210/image.png?ex=6af52e7b&is=6af3dcfb&hm=fd0185c34b4ff9f27a5514c011677fb0aca7d4c161645711b6d2b76776e87f23)
+![Zrzut ekranu aplikacji Indeks]([https://cdn.discordapp.com/attachments/703557136793337926/1569912531881820210/image.png?ex=6af52e7b&is=6af3dcfb&hm=fd0185c34b4ff9f27a5514c011677fb0aca7d4c161645711b6d2b76776e87f23](https://cdn.discordapp.com/attachments/703557136793337926/1569916654656159764/image.png?ex=6af53252&is=6af3e0d2&hm=334d5071a762398f0e7f4e0884edd3fa070dfbf249c7fd1c5ca00f5bd6cce273&))
 
 ## Interfejs i kierunek wizualny
 
