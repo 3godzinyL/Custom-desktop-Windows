@@ -42,7 +42,13 @@ static class Program
             int parent = 0;
             for (int i = 0; i + 1 < args.Length; i++)
                 if (args[i] == "--rodzic") int.TryParse(args[i + 1], out parent);
+            // wyjatek nie zamyka silnika - trafia do dziennika
+            Application.SetUnhandledExceptionMode(UnhandledExceptionMode.CatchException);
+            Application.ThreadException += delegate(object s, ThreadExceptionEventArgs e) { Nakladka.Log("wyjatek: " + e.Exception); };
+            AppDomain.CurrentDomain.UnhandledException += delegate(object s, UnhandledExceptionEventArgs e) { Nakladka.Log("blad krytyczny: " + e.ExceptionObject); };
+            Nakladka.Log("start, rodzic " + parent);
             Application.Run(new Nakladka(parent));
+            Nakladka.Log("koniec");
         }
         return 0;
     }
@@ -74,7 +80,7 @@ sealed class Cfg
                     case "nakladka": Overlay = v == "1"; break;
                     case "nakladka_dyski": Disks = v == "1"; break;
                     case "nakladka_maks": Maximized = v == "1"; break;
-                    case "nakladka_cs": Enabled = v == "1"; break;
+                    case "nakladka_cs": Enabled = v != "0"; break; // tylko jawne 0 wylacza
                     case "nakladka_widocznosc": if (int.TryParse(v, out n)) Alpha = Math.Max(5, Math.Min(100, n)); break;
                     case "dyski_widocznosc": if (int.TryParse(v, out n)) DiskAlpha = Math.Max(5, Math.Min(100, n)); break;
                 }
@@ -221,10 +227,10 @@ sealed class Nakladka : Form
 
     void Tick()
     {
-        if (parent != null && parent.HasExited) { Application.Exit(); return; }
+        if (parent != null && parent.HasExited) { Log("Indeks zamkniety - koniec"); Application.Exit(); return; }
         bool cfgChanged = cfg.Reload();
         // w ustawieniach wybrano nakladke w Rust - konczymy (Indeks rysuje sam)
-        if (!cfg.Enabled) { Application.Exit(); return; }
+        if (!cfg.Enabled) { Log("nakladka_cs=0 - nakladke rysuje Rust, koniec"); Application.Exit(); return; }
         N.RECT area;
         IntPtr monitor;
         if (!cfg.Overlay || !Detect(out area, out monitor)) { HideOverlay(); return; }
@@ -268,8 +274,18 @@ sealed class Nakladka : Form
                 DateTime.Now, proc, ClassOf(fg), r.L, r.T, r.R, r.B, mi.rcMonitor.L, mi.rcMonitor.T, mi.rcMonitor.R, mi.rcMonitor.B,
                 N.IsZoomed(fg) ? 1 : 0, quns, visible ? "widoczna" : "ukryta");
             if (quns == 3) line += "  <- wylaczny pelny ekran Direct3D: ustaw w grze tryb 'okno bez ramki' / 'pelny ekran w oknie'";
+            Log(line);
+        }
+        catch { }
+    }
+
+    public static void Log(string line)
+    {
+        try
+        {
             var fi = new FileInfo(LogPath);
             if (fi.Exists && fi.Length > 256 * 1024) fi.Delete();
+            if (!line.StartsWith("20")) line = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss ") + line;
             File.AppendAllText(LogPath, line + Environment.NewLine, Encoding.UTF8);
         }
         catch { }

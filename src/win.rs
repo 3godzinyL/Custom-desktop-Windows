@@ -174,21 +174,28 @@ fn manage_cs_overlay(want: bool) {
             start_cs_overlay();
         }
     } else if !want && alive {
+        // C# sam sie konczy po odczytaniu nakladka_cs=0; nasz proces dobijamy dla pewnosci
         CS_OVERLAY.with(|c| {
             if let Some(mut ch) = c.borrow_mut().take() {
                 let _ = ch.kill();
+                util::log("nakladka: silnik C# wylaczony w ustawieniach - rysuje Rust");
             }
         });
-        util::log("nakladka: silnik C# wylaczony w ustawieniach - rysuje Rust");
     }
 }
 
 /// Czy silnik C# dziala (jesli padl - nakladke przejmuje Rust).
 fn cs_overlay_alive() -> bool {
-    CS_OVERLAY.with(|c| match c.borrow_mut().as_mut() {
-        Some(ch) => matches!(ch.try_wait(), Ok(None)),
-        None => false,
-    })
+    use windows::Win32::System::Threading::{OpenMutexW, SYNCHRONIZATION_SYNCHRONIZE};
+    match unsafe { OpenMutexW(SYNCHRONIZATION_SYNCHRONIZE, false, w!("Local\\Indeks.Nakladka")) } {
+        Ok(h) => {
+            unsafe {
+                let _ = windows::Win32::Foundation::CloseHandle(h);
+            }
+            true
+        }
+        Err(_) => false,
+    }
 }
 
 fn invalidate() {
@@ -345,7 +352,7 @@ fn run_inner(mode: Mode, start_folder: Option<String>, extra: bool) -> windows::
         // pasek stanu (CPU/GPU/RAM/dyski) - liczony gdy pulpit jest widoczny albo nakladka nad pelnym ekranem
         if mode == Mode::Desktop {
             OVERLAY.with(|o| *o.borrow_mut() = crate::overlay::Overlay::new());
-            start_cs_overlay();
+            manage_cs_overlay(with_app(|a| a.cfg.overlay_cs).unwrap_or(true));
         }
         with_app(|a| a.update_apps());
         SetTimer(Some(ctl), T_STATS, 2000, None);

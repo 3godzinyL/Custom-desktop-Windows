@@ -305,15 +305,16 @@ impl Renderer {
                 l.apps.push(Rc { x, y: l.apps_row.y + row as f32 * row_h + 4.0, w: bw, h: row_h - 8.0 });
             }
         }
-        // kolumna podpisow jezykow z lewej strony drzewa: najdluzsza nazwa w drzewie
+        // podpisy jezykow stoja tuz przy swoim folderze (przed linia rodzica); drzewo
+        // przesuwa sie w prawo tylko o tyle, ile brakuje miejsca najplytszemu podpisowi
         let mono = self.f_mono.clone();
         l.tree_label_w = page
             .tree
             .iter()
-            .filter_map(|n| n.tech)
-            .map(|t| self.measure_with(crate::profiles::LANGS[t].name, &mono) + 10.0)
+            .filter_map(|n| n.tech.map(|t| (t, n.depth)))
+            .map(|(t, d)| self.measure_with(crate::profiles::LANGS[t].name, &mono) - d.saturating_sub(1) as f32 * 18.0)
             .fold(0.0, f32::max)
-            .min(120.0);
+            .clamp(0.0, 120.0);
         // zebatka ustawien w prawym gornym rogu
         l.gear = Rc { x: w - 36.0, y: (l.top.h - 26.0) / 2.0, w: 26.0, h: 26.0 };
 
@@ -374,7 +375,7 @@ impl Renderer {
         // koncza sie wczesniej, zeby nic na niego nie nachodzilo
         let kinds_h = snap(76.0);
         let upper = bottom - kinds_h - snap(10.0);
-        let tree_w = snap((w * 0.16).clamp(250.0, 340.0));
+        let tree_w = snap((w * 0.17).clamp(260.0, 360.0));
         l.tree_frame = Rc { x: snap(8.0), y: top, w: tree_w, h: upper - top };
         l.tree = inner(&l.tree_frame, s);
 
@@ -390,7 +391,7 @@ impl Renderer {
             l.table = inner(&frame, s);
             kinds_right = l.tree_frame.right();
         } else {
-            let fw = snap((mw * 0.27).clamp(240.0, 420.0));
+            let fw = snap((mw * 0.25).clamp(230.0, 390.0));
             l.folders_frame = Rc { x: mx, y: cy, w: fw, h: upper - cy };
             l.folders = inner(&l.folders_frame, s);
             l.files_frame = Rc { x: mx + fw + snap(10.0), y: cy, w: mw - fw - snap(10.0), h: bottom - cy };
@@ -776,14 +777,6 @@ impl Renderer {
                 continue;
             }
             let mid = self.snap(r.y + r.h / 2.0);
-            // podpis jezyka z lewej strony (pelna nazwa, kolor jezyka), wyrownany do drzewa
-            if let Some(t) = n.tech {
-                let name = crate::profiles::LANGS[t].name;
-                let mono = self.f_mono.clone();
-                let w = self.measure_with(name, &mono);
-                let br = self.lang_brush(rt, t)?;
-                self.text(rt, name, v.x + lab_w - 4.0 - w, r.y + (r.h - self.mono_h) / 2.0, w + 2.0, &mono, &br, false)?;
-            }
             // kropkowane linie (Windows 98): co drugi piksel, ostro, bez wygladzania
             let dots = |x0: f32, y0: f32, x1: f32, y1: f32| unsafe {
                 let (x0p, y0p, x1p, y1p) = ((x0 / p).round() as i32, (y0 / p).round() as i32, (x1 / p).round() as i32, (y1 / p).round() as i32);
@@ -822,6 +815,18 @@ impl Renderer {
                 if !open {
                     self.vline(rt, self.snap(bxl + sz / 2.0 - p / 2.0), byt + 2.0, byt + sz - 2.0, &b.text);
                 }
+            }
+            // podpis jezyka tuz przy folderze: konczy sie przed linia rodzica (pelna nazwa,
+            // kolor jezyka); tlo przykrywa linie dalszych przodkow pod napisem
+            if let Some(t) = n.tech {
+                let name = crate::profiles::LANGS[t].name;
+                let mono = self.f_mono.clone();
+                let w = self.measure_with(name, &mono);
+                let end = bx(n.depth.saturating_sub(1)) - 2.0;
+                let lx = (end - w).max(v.x + 2.0);
+                unsafe { rt.FillRectangle(&rect(lx - 2.0, r.y + 2.0, end - lx + 3.0, r.h - 4.0), &b.bg) };
+                let br = self.lang_brush(rt, t)?;
+                self.text(rt, name, lx, r.y + (r.h - self.mono_h) / 2.0, w + 2.0, &mono, &br, false)?;
             }
             let ix = x0 + 13.0;
             self.draw_icon(rt, &n.icon, ix, r.y + (r.h - 16.0) / 2.0, 16.0, icons)?;
