@@ -1,7 +1,5 @@
 <div align="center">
 
-<img src="https://capsule-render.vercel.app/api?type=waving&color=0:0a0a0a,100:1e1e3a&height=210&section=header&text=Indeks&fontColor=ffd84d&fontSize=78&fontAlignY=38&desc=w%C5%82asny%20pulpit%20Windows%20%C2%B7%20Rust%20%C2%B7%20C%2B%2B%20%C2%B7%20C%20%C2%B7%20C%23%20%C2%B7%20bez%20Electrona&descAlignY=62&descSize=19&descColor=9e9eff" width="100%" alt="Indeks">
-
 <br>
 
 <img src="https://img.shields.io/badge/Rust-interfejs%20%C2%B7%20m%C3%B3zg-000000?style=for-the-badge&logo=rust&logoColor=white" alt="Rust">
@@ -19,10 +17,11 @@
 <img src="https://img.shields.io/badge/.NET%20Framework-4.x-1e1e3a?style=for-the-badge" alt=".NET Framework">
 <img src="https://img.shields.io/badge/Windows-10%20%7C%2011-1e1e3a?style=for-the-badge" alt="Windows">
 <img src="https://img.shields.io/badge/bez%20Electrona-~30%E2%80%9360%20MB-ffd84d?style=for-the-badge" alt="bez Electrona">
+<br>
+<img src="https://capsule-render.vercel.app/api?type=waving&color=0:0a0a0a,100:1e1e3a&height=210&section=header&text=Indeks&fontColor=ffd84d&fontSize=78&fontAlignY=38&desc=w%C5%82asny%20pulpit%20Windows%20%C2%B7%20Rust%20%C2%B7%20C%2B%2B%20%C2%B7%20C%20%C2%B7%20C%23%20%C2%B7%20bez%20Electrona&descAlignY=62&descSize=19&descColor=9e9eff" width="100%" alt="Indeks">
 
 <br><br>
 
-<b>Indeks</b> · własny pulpit Windows &nbsp;—&nbsp; <b>Rust</b> · <b>C++</b> · <b>C</b> · <b>C#</b> &nbsp;·&nbsp; bez Electrona &nbsp;·&nbsp; bez lagów
 
 <br><br>
 
