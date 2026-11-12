@@ -10,14 +10,17 @@
 //   P <pid>...       -> "<ścieżka>\t..."            (pełne ścieżki exe, puste = brak dostępu)
 //   a                -> "<pid> <słychać 0|1> ..."   (sesje dźwięku: otwarte + czy realnie gra)
 //   L <poz> <pid>... -> "<zwolnione_bajty> <ile_się_udało>" (stopień 0-3 dla całej grupy)
+//   g                -> "<pid> <gpu_promile> ..."   (zużycie GPU 3D na proces, licznik PDH)
 //   e <pid> <0|1>    -> "ok"                        (EcoQoS wł/wył)
 //   p <pid> <klasa>  -> "ok"                        (klasa priorytetu)
 //   t <pid>          -> "<zwolnione_bajty>"         (oczyść zbiór roboczy = zwolnij RAM)
 //   r <pid>          -> "ok"                        (cofnij wszystko do stanu sprzed dotknięcia)
 //   q                -> koniec
 //
-// Stopnie: 1 = EcoQoS + priorytet poniżej normalnego + średni priorytet pamięci,
-// 2 i 3 = EcoQoS + bezczynny + bardzo niski priorytet pamięci + oczyszczenie RAM.
+// Stopnie: 1 = EcoQoS + CPU i GPU poniżej normalnego + średni priorytet pamięci,
+// 2 = jak 1 + zwolnienie RAM, 3 = EcoQoS + CPU i GPU bezczynne + bardzo niski priorytet
+// pamięci + zwolnienie RAM. GPU: priorytet harmonogramu karty (D3DKMT) - gra na wierzchu
+// dostaje kartę pierwsza, aplikacje w tle czekają.
 // Cofnięcie przywraca ORYGINALNĄ klasę priorytetu (gra na High wraca na High, nie na Normal).
 //
 // Używa WYŁĄCZNIE oficjalnych API Windows (jak tryb wydajności Menedżera zadań / Process
@@ -38,6 +41,9 @@
 #include <string>
 #pragma comment(lib, "psapi.lib")
 #pragma comment(lib, "ole32.lib")
+#pragma comment(lib, "pdh.lib")
+#include <pdh.h>
+#include <vector>
 
 #ifndef PROCESS_POWER_THROTTLING_EXECUTION_SPEED
 #define PROCESS_POWER_THROTTLING_EXECUTION_SPEED 0x1
@@ -45,6 +51,29 @@
 
 static std::set<unsigned> g_touched;              // procesy, które ograniczyliśmy (do przywrócenia)
 static std::map<unsigned, DWORD> g_orig_prio;     // klasa priorytetu sprzed pierwszego dotknięcia
+static std::map<unsigned, int> g_orig_gpu;        // priorytet GPU sprzed pierwszego dotknięcia
+
+// Priorytet harmonogramu GPU (gdi32: D3DKMT{Set,Get}ProcessSchedulingPriorityClass).
+// 0 = bezczynny, 1 = poniżej normalnego, 2 = normalny.
+typedef LONG(APIENTRY* GpuSet)(HANDLE, int);
+typedef LONG(APIENTRY* GpuGet)(HANDLE, int*);
+static int gpuprio(unsigned pid, int cls) {
+    static HMODULE gdi = LoadLibraryW(L"gdi32.dll");
+    static GpuSet set = gdi ? (GpuSet)GetProcAddress(gdi, "D3DKMTSetProcessSchedulingPriorityClass") : nullptr;
+    static GpuGet get = gdi ? (GpuGet)GetProcAddress(gdi, "D3DKMTGetProcessSchedulingPriorityClass") : nullptr;
+    if (!set) return 0;
+    HANDLE h = OpenProcess(PROCESS_SET_INFORMATION | PROCESS_QUERY_INFORMATION, FALSE, pid);
+    if (!h) h = OpenProcess(PROCESS_SET_INFORMATION | PROCESS_QUERY_LIMITED_INFORMATION, FALSE, pid);
+    if (!h) return 0;
+    if (!g_orig_gpu.count(pid)) {
+        int c = 2;
+        if (!get || get(h, &c) < 0) c = 2;
+        g_orig_gpu[pid] = c;
+    }
+    int ok = set(h, cls) >= 0 ? 1 : 0;
+    CloseHandle(h);
+    return ok;
+}
 static CRITICAL_SECTION g_lock;                   // pętla komend vs wątek bezpiecznika
 
 static int eco(unsigned pid, int on) {
@@ -104,6 +133,11 @@ static void restore(unsigned pid) {
     prio(pid, it != g_orig_prio.end() ? it->second : NORMAL_PRIORITY_CLASS);
     memprio(pid, MEMORY_PRIORITY_NORMAL);
     g_orig_prio.erase(pid);
+    auto g = g_orig_gpu.find(pid);
+    if (g != g_orig_gpu.end()) {
+        gpuprio(pid, g->second);
+        g_orig_gpu.erase(pid);
+    }
 }
 
 // Stopień dla jednego procesu; zwraca zwolnione bajty, *ok = czy system pozwolił.
@@ -116,14 +150,59 @@ static unsigned long long set_level(unsigned pid, int lvl, int* ok) {
     }
     if (!eco(pid, 1)) { *ok = 0; return 0; }
     g_touched.insert(pid);
-    if (lvl == 1) {
+    if (lvl <= 2) {
         prio(pid, BELOW_NORMAL_PRIORITY_CLASS);
         memprio(pid, MEMORY_PRIORITY_MEDIUM);
-        return 0;
+        gpuprio(pid, 1);
+        return lvl == 2 ? trim(pid) : 0;
     }
     prio(pid, IDLE_PRIORITY_CLASS);
     memprio(pid, MEMORY_PRIORITY_VERY_LOW);
+    gpuprio(pid, 0);
     return trim(pid);
+}
+
+// GPU 3D na proces z liczników „GPU Engine" (jak kolumna GPU w Menedżerze zadań).
+// Pierwsze wywołanie tylko zaczyna pomiar (licznik potrzebuje dwóch próbek).
+static void gpu_usage() {
+    static PDH_HQUERY q = nullptr;
+    static PDH_HCOUNTER c = nullptr;
+    if (!q) {
+        if (PdhOpenQueryW(nullptr, 0, &q) != ERROR_SUCCESS ||
+            PdhAddEnglishCounterW(q, L"\\GPU Engine(*)\\Utilization Percentage", 0, &c) != ERROR_SUCCESS) {
+            fputs("\n", stdout);
+            return;
+        }
+        PdhCollectQueryData(q);
+        fputs("\n", stdout);
+        return;
+    }
+    std::string out;
+    if (PdhCollectQueryData(q) == ERROR_SUCCESS) {
+        DWORD size = 0, count = 0;
+        PdhGetFormattedCounterArrayW(c, PDH_FMT_DOUBLE, &size, &count, nullptr);
+        std::vector<char> buf(size + 16);
+        auto items = (PDH_FMT_COUNTERVALUE_ITEM_W*)buf.data();
+        if (size && PdhGetFormattedCounterArrayW(c, PDH_FMT_DOUBLE, &size, &count, items) == ERROR_SUCCESS) {
+            std::map<unsigned, double> per;
+            for (DWORD i = 0; i < count; i++) {
+                const wchar_t* n = items[i].szName;
+                if (!n || !wcsstr(n, L"engtype_3D") || items[i].FmtValue.CStatus != ERROR_SUCCESS) continue;
+                const wchar_t* pp = wcsstr(n, L"pid_");
+                if (!pp) continue;
+                per[(unsigned)wcstoul(pp + 4, nullptr, 10)] += items[i].FmtValue.doubleValue;
+            }
+            char b[40];
+            for (auto& kv : per) {
+                int pm = (int)(kv.second * 10.0 + 0.5);
+                if (pm <= 0) continue;
+                snprintf(b, sizeof(b), "%u %d ", kv.first, pm > 1000 ? 1000 : pm);
+                out += b;
+            }
+        }
+    }
+    out += '\n';
+    fputs(out.c_str(), stdout);
 }
 
 static void sample(unsigned pid, unsigned long long* ws, unsigned long long* cpu, int* denied) {
@@ -349,6 +428,8 @@ int wmain(int argc, wchar_t** argv) {
                 }
             }
             printf("%llu %d\n", freed, oks);
+        } else if (cmd == 'g') {
+            gpu_usage();
         } else if (cmd == 'P') {
             paths(p + 1);
         } else if (cmd == 'e') {

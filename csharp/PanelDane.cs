@@ -125,9 +125,19 @@ sealed class Catalog
         catch (IOException) { return null; }
         TrashEntry last = null;
         var byPath = new Dictionary<string, Project>(StringComparer.OrdinalIgnoreCase);
+        // zrzuty do README: bez nazw, ktore na publicznym zdjeciu wygladalyby zle
+        bool demo = Environment.GetEnvironmentVariable("INDEKS_DEMO") != null;
+        string[] demoWords = { "steal", "cheat", "token", "grab", "virus", "wirus", "inject", "keydrop", "loader", "hack", "crack", "keylog", "spoof", "bypass", "exploit", "malware", "nuker", "miner", "rat_", "obf", "_load" };
         foreach (string line in lines)
         {
             if (line.Length < 2) continue;
+            if (demo && line[0] != 'V')
+            {
+                string low = line.ToLowerInvariant();
+                bool bad = false;
+                foreach (string w in demoWords) if (low.Contains(w)) { bad = true; break; }
+                if (bad) { if (line[0] == 'T') last = null; continue; }
+            }
             string[] f = line.Split('\t');
             switch (line[0])
             {

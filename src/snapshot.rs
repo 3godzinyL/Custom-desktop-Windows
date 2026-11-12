@@ -45,6 +45,9 @@ pub struct Opts {
 }
 
 pub fn run(o: Opts) -> Result<()> {
+    if o.demo {
+        std::env::set_var("INDEKS_DEMO", "1");
+    }
     let mut cfg = Config::load();
     if let Some(f) = &o.folder {
         cfg.home = f.clone();
@@ -94,10 +97,9 @@ pub fn run(o: Opts) -> Result<()> {
         app.toggle_settings(true);
     }
     if o.opt {
+        // stan z dzialajacego pulpitu (plik), bez dotykania procesow
         app.cfg.optimize = true;
-        crate::optymalizator::tick(true, 2.0);
-        std::thread::sleep(std::time::Duration::from_millis(1000));
-        crate::optymalizator::tick(true, 1.0);
+        crate::optymalizator::load_state_file();
         app.update_stats();
         app.toggle_opt_reveal(true);
     }
@@ -115,6 +117,12 @@ pub fn run(o: Opts) -> Result<()> {
     }
     if let Some(i) = o.select {
         app.select(Target::Folder(i));
+    }
+    if o.disk {
+        // miejsce panelu C# w pikselach - skrypt zrzutu wkleja tam indeks-panel.exe --zrzut
+        let (s, r) = (o.dpi / 96.0, app.layout.files_frame);
+        let px = |v: f32| (v * s).round() as i32;
+        let _ = std::fs::write(format!("{}.panel", o.out), format!("{} {} {} {}", px(r.x), px(r.y), px(r.right()) - px(r.x), px(r.bottom()) - px(r.y)));
     }
     unsafe {
         let wic: IWICImagingFactory = CoCreateInstance(&CLSID_WICImagingFactory, None, CLSCTX_INPROC_SERVER)?;

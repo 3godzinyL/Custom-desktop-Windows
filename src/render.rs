@@ -38,6 +38,8 @@ use crate::stats;
 
 const STRIP_PX: i32 = 256;
 const COL_PAD: f32 = 32.0;
+/// Naglowek zakladki optymalizacji (tytul + mierniki CPU / RAM / GPU).
+const OPT_HEAD: f32 = 142.0;
 const TILE_ICON: f32 = 32.0;
 
 pub const BG: u32 = 0x0A0A0A;
@@ -305,7 +307,7 @@ impl Renderer {
         let mut opt_y = l.status.y;
         if page.opt_reveal && page.status.opt_on {
             let orow = snap(26.0);
-            let header_h = snap(116.0);
+            let header_h = snap(OPT_HEAD);
             let max_h = (h * 0.42).min(h - snap(380.0)).max(header_h + snap(14.0));
             let want = header_h + page.opt_apps.len() as f32 * orow + snap(14.0);
             let ph = snap(want.min(max_h).max(header_h + snap(14.0)));
@@ -358,6 +360,27 @@ impl Renderer {
 
         // Struktura i naglowek zaczynaja sie zaraz pod gornym paskiem
         let top = l.top.bottom() + snap(10.0);
+        // Ulubione: rzad nad Struktura, od lewej do prawej przez cala szerokosc; brak miejsca =
+        // kolejny rzad nizej. Struktura i tytul folderu zaczynaja sie pod nimi.
+        let top = if page.favs.is_empty() {
+            top
+        } else {
+            let fav_h = snap(self.line_h + 6.0);
+            let x0 = snap(8.0) + self.measure_with("Ulubione:", &self.f_mono_bold) + 14.0;
+            let x1 = w - snap(8.0);
+            let (mut fx, mut fy) = (x0, top - 4.0);
+            for f in &page.favs {
+                let fw = (self.measure(&f.text, true) + 22.0).min(x1 - x0);
+                if fx + fw > x1 && fx > x0 {
+                    fx = x0;
+                    fy += fav_h;
+                }
+                l.favs.push(Rc { x: fx, y: fy, w: fw, h: self.line_h });
+                fx += fw + 16.0;
+            }
+            l.fav_frame = Rc { x: snap(8.0), y: top - 4.0, w: w - snap(16.0), h: snap(fy + fav_h - (top - 4.0)) };
+            l.fav_frame.bottom() + snap(10.0)
+        };
         // panele koncza sie nad rzedem aplikacji (a bez niego nad paskiem wydajnosci)
         let bottom = if l.apps_row.h > 0.0 { l.apps_row.y } else { opt_y } - snap(8.0);
         // panel "Projekty na dysku" pod drzewem i lista folderow - panele nad nim
@@ -371,25 +394,7 @@ impl Renderer {
         let mx = l.tree_frame.right() + snap(12.0);
         let mw = w - mx - snap(8.0);
         // tytul, sciezka i (dla folderu) pasek jezykow z silnika projektow
-        // Ulubione: jedna linia nad tytulem biezacego folderu; brak miejsca = kolejny rzad nizej
-        let mut head_y = top - 4.0;
-        if !page.favs.is_empty() {
-            let fav_h = snap(self.line_h + 6.0);
-            let x0 = mx + self.measure_with("Ulubione:", &self.f_mono_bold) + 14.0;
-            let x1 = mx + mw - 8.0;
-            let (mut fx, mut fy) = (x0, top - 4.0);
-            for f in &page.favs {
-                let fw = (self.measure(&f.text, true) + 22.0).min(x1 - x0);
-                if fx + fw > x1 && fx > x0 {
-                    fx = x0;
-                    fy += fav_h;
-                }
-                l.favs.push(Rc { x: fx, y: fy, w: fw, h: self.line_h });
-                fx += fw + 16.0;
-            }
-            l.fav_frame = Rc { x: mx, y: top - 4.0, w: mw, h: snap(fy + fav_h - (top - 4.0)) };
-            head_y = l.fav_frame.bottom() + snap(4.0);
-        }
+        let head_y = top - 4.0;
         l.head = Rc { x: mx, y: head_y, w: mw, h: snap(self.h1_h + self.line_h * 2.0 + 18.0) };
         // karty nad lista "Projekty i foldery": [ikona nazwa  x]
         l.tabbar = Rc { x: mx, y: l.head.bottom(), w: mw, h: snap(30.0) };
@@ -498,7 +503,7 @@ impl Renderer {
         // przyciski wierszy rozwinietej zakladki optymalizacji
         if l.opt_panel.h > 0.0 {
             let row_h = snap(26.0);
-            let header_h = snap(116.0);
+            let header_h = snap(OPT_HEAD);
             let py = l.opt_panel.y;
             let list_top = py + header_h;
             let avail = l.status.y - snap(10.0) - list_top;
@@ -1384,33 +1389,39 @@ impl Renderer {
         self.frame(rt, &f, "Optymalizacja zasobów tła", b)?;
         let mono = self.f_mono.clone();
         // nagłówek: oszczędności + podpowiedź
-        let head = format!("Zaoszczędzono {}", stats::mb(st.opt_saved));
-        self.text(rt, &head, f.x + 16.0, f.y + 12.0, 400.0, &self.f_h1.clone(), &b.yellow, false)?;
+        let head = format!("Zaoszczędzono {} · CPU {} · GPU {}", stats::mb(st.opt_saved), pct_down(st.opt_saved_cpu), pct_down(st.opt_saved_gpu));
+        self.text(rt, &head, f.x + 16.0, f.y + 12.0, 900.0, &self.f_h1.clone(), &b.yellow, false)?;
         let hw = self.measure_with(&head, &self.f_h1);
-        let sub = format!("· {} aplikacji ograniczonych · {} w indeksie", st.opt_count, crate::app::group_digits(ui.index_count));
+        let sub = format!("· {} aplikacji ograniczonych", st.opt_count);
         self.text(rt, &sub, f.x + 16.0 + hw + 14.0, f.y + 20.0, 600.0, &self.f_body.clone(), &b.dim, false)?;
         let hint = "scroll w górę chowa";
         let hwd = self.measure_with(hint, &mono);
         self.text(rt, hint, f.right() - hwd - 16.0, f.y + 14.0, hwd + 4.0, &mono, &b.dim, false)?;
-        // porównywarki CPU i RAM
-        let cpu_would = (st.cpu + st.opt_would_cpu).min(1.0);
+        // porównywarki CPU, RAM i GPU: teraz vs bez optymalizacji
+        let cpu_would = (st.cpu + st.opt_saved_cpu).min(1.0);
         let would_ram = st.ram_used + st.opt_saved;
         let ram_frac = would_ram as f32 / st.ram_total.max(1) as f32;
         let my = f.y + 50.0;
         self.opt_meter(rt, "CPU", f.x + 16.0, my, st.cpu, cpu_would, &format!("{:>3}%", (st.cpu * 100.0).round() as u32), &format!("~{:>3}%", (cpu_would * 100.0).round() as u32), b)?;
         let ram = st.ram_used as f32 / st.ram_total.max(1) as f32;
         self.opt_meter(rt, "RAM", f.x + 16.0, my + self.mono_h + 7.0, ram, ram_frac, &stats::gb(st.ram_used), &format!("~{}", stats::gb(would_ram)), b)?;
+        let gpu_would = (st.gpu + st.opt_saved_gpu).min(1.0);
+        self.opt_meter(rt, "GPU", f.x + 16.0, my + 2.0 * (self.mono_h + 7.0), st.gpu, gpu_would, &format!("{:>3}%", (st.gpu * 100.0).round() as u32), &format!("~{:>3}%", (gpu_would * 100.0).round() as u32), b)?;
         // nagłówek listy
-        let list_top = f.y + 116.0;
+        let list_top = f.y + OPT_HEAD;
         let lx = f.x + 16.0;
-        let col_ram = f.x + f.w * 0.44;
-        let col_cpu = f.x + f.w * 0.52;
-        let col_stan = f.x + f.w * 0.60;
+        let col_ram = f.x + f.w * 0.29;
+        let col_cpu = f.x + f.w * 0.345;
+        let col_gpu = f.x + f.w * 0.39;
+        let col_sav = f.x + f.w * 0.435;
+        let col_stan = f.x + f.w * 0.665;
         let mb = self.f_mono_bold.clone();
         self.text(rt, "Aplikacja w tle", lx, list_top - 22.0, 300.0, &mb, &b.dim, false)?;
         self.text(rt, "RAM", col_ram, list_top - 22.0, 80.0, &mb, &b.dim, false)?;
         self.text(rt, "CPU", col_cpu, list_top - 22.0, 80.0, &mb, &b.dim, false)?;
-        self.text(rt, "Stan optymalizacji", col_stan, list_top - 22.0, 220.0, &mb, &b.dim, false)?;
+        self.text(rt, "GPU", col_gpu, list_top - 22.0, 80.0, &mb, &b.dim, false)?;
+        self.text(rt, "Zaoszczędzono", col_sav, list_top - 22.0, 220.0, &mb, &b.dim, false)?;
+        self.text(rt, "Stan", col_stan, list_top - 22.0, 220.0, &mb, &b.dim, false)?;
         self.hline(rt, lx, f.right() - 14.0, list_top - 3.0, &b.frame);
         if page.opt_apps.is_empty() {
             self.text(rt, "Brak aplikacji tła do ograniczenia (albo optymalizacja dopiero zbiera dane).", lx, list_top + 6.0, f.w - 32.0, &self.f_body.clone(), &b.dim, false)?;
@@ -1437,19 +1448,36 @@ impl Renderer {
             self.text(rt, &a.name, lx + 16.0, ty, col_ram - lx - 20.0, &self.f_body.clone(), &b.text, false)?;
             self.text(rt, &stats::mb(a.ws), col_ram, row_y + (lim.h - self.mono_h) / 2.0, 80.0, &mono, &b.text, false)?;
             self.text(rt, &format!("{:.0}%", a.cpu * 100.0), col_cpu, row_y + (lim.h - self.mono_h) / 2.0, 70.0, &mono, &b.text, false)?;
-            let stan = if a.blocked {
-                "chroniona przez system / anty-cheat - tylko pomiar".to_string()
+            self.text(rt, &format!("{:.0}%", a.gpu * 100.0), col_gpu, row_y + (lim.h - self.mono_h) / 2.0, 70.0, &mono, &b.text, false)?;
+            // ile zaoszczedzono na tej aplikacji: kreski = czesc RAM sprzed ograniczenia
+            // (kazde kolejne zwolnienie dokłada kreski) + liczby RAM / CPU / GPU
+            let my = row_y + (lim.h - self.mono_h) / 2.0;
+            if a.level > 0 && !a.blocked && !a.active {
+                let frac = if a.before_ram > 0 { a.saved_ram as f32 / a.before_ram as f32 } else { 0.0 };
+                let sx = col_sav + self.segments(rt, col_sav, row_y + (lim.h - 13.0) / 2.0, 10, frac)? + 8.0;
+                let ram = if a.saved_ram > 0 { format!("−{}", stats::mb(a.saved_ram)) } else { stats::mb(0) };
+                let s = format!("{} · CPU {} · GPU {}", ram, pct_down(a.saved_cpu), pct_down(a.saved_gpu));
+                let green = unsafe { rt.CreateSolidColorBrush(&rgb(0x55FF55), None)? };
+                self.text(rt, &s, sx, my, (col_stan - sx - 8.0).max(20.0), &mono, &green, false)?;
+            } else {
+                self.text(rt, "—", col_sav, my, 40.0, &mono, &b.dim, false)?;
+            }
+            let stan = if a.active {
+                "na wierzchu".to_string()
+            } else if a.blocked {
+                "chroniona (anty-cheat / admin)".to_string()
             } else {
                 let base = match a.level {
                     0 => "pełne zasoby",
-                    1 => "EcoQoS + niższy priorytet",
-                    _ => "EcoQoS + bezczynny + RAM",
+                    1 => "EcoQoS, niższy CPU/GPU",
+                    2 => "EcoQoS, niższy CPU/GPU, RAM",
+                    _ => "bezczynny CPU/GPU, RAM",
                 };
                 let mut s = base.to_string();
                 if a.audio {
-                    s.push_str(" · słychać dźwięk (max EcoQoS)");
+                    s.push_str(" · dźwięk");
                 } else if a.next_in > 0 {
-                    s.push_str(&format!(" · następny stopień za {} s", a.next_in));
+                    s.push_str(&format!(" · za {} s", a.next_in));
                 }
                 s
             };
@@ -1589,4 +1617,16 @@ pub fn scrollbar_thumb(l: &Layout, ui: &Ui, r: Region) -> Option<(f32, f32)> {
     let max_scroll = content - v.h;
     let ty = v.y + (v.h - th) * (ui.scroll[r as usize] / max_scroll).clamp(0.0, 1.0);
     Some((ty, th))
+}
+
+/// Zaoszczedzony ulamek jako "−3%" (ponizej 10% z jednym miejscem po przecinku).
+fn pct_down(f: f32) -> String {
+    let p = f * 100.0;
+    if p < 0.05 {
+        "0%".into()
+    } else if p < 10.0 {
+        format!("−{:.1}%", p).replace('.', ",")
+    } else {
+        format!("−{:.0}%", p)
+    }
 }

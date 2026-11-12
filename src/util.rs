@@ -89,3 +89,17 @@ pub fn kv_lines(text: &str) -> impl Iterator<Item = (&str, &str)> {
         Some((k.trim(), v.trim()))
     })
 }
+
+/// Zrzuty do README (`--zrzut --demo`, zmienna INDEKS_DEMO): nazwy, ktore na publicznym
+/// zdjeciu wygladalyby zle, sa pomijane w listach. W zwyklej pracy nic nie jest ukrywane.
+pub fn demo_hidden(name: &str) -> bool {
+    const WORDS: [&str; 21] = [
+        "steal", "cheat", "token", "grab", "virus", "wirus", "inject", "keydrop", "loader", "hack", "crack",
+        "keylog", "spoof", "bypass", "exploit", "malware", "nuker", "miner", "rat_", "obf", "_load",
+    ];
+    if std::env::var_os("INDEKS_DEMO").is_none() {
+        return false;
+    }
+    let n = name.to_lowercase();
+    WORDS.iter().any(|w| n.contains(w))
+}

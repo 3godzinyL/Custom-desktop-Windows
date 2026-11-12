@@ -551,9 +551,12 @@ fn update_stats(force: bool) {
         invalidate();
     } else if let Some(v) = view() {
         let s = dpi_of(v) / 96.0;
-        if let Some((st, ap)) = with_app(|a| (a.layout.status, a.layout.apps_row)) {
+        if let Some((st, ap, op)) = with_app(|a| (a.layout.status, a.layout.apps_row, a.layout.opt_panel)) {
             unsafe {
                 let _ = InvalidateRect(Some(v), Some(&px_rect(&st, s)), false);
+                if op.w > 0.0 {
+                    let _ = InvalidateRect(Some(v), Some(&px_rect(&op, s)), false);
+                }
                 if ap.w > 0.0 {
                     let _ = InvalidateRect(Some(v), Some(&px_rect(&ap, s)), false);
                 }

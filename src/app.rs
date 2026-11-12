@@ -766,7 +766,9 @@ impl App {
     fn fill_status(&mut self) {
         let s = &self.stats;
         let opt = crate::optymalizator::savings();
-        // rozwinieta zakladka optymalizacji: lista aplikacji z silnika
+        // rozwinieta zakladka optymalizacji: lista aplikacji z silnika; inna liczba wierszy =
+        // nowy uklad (wysokosc zakladki, przyciski) - inaczej po powrocie na pulpit byla nieaktualna
+        let rows_before = self.page.opt_apps.len();
         self.page.opt_apps = crate::optymalizator::usage()
             .into_iter()
             .map(|a| crate::page::OptApp {
@@ -782,12 +784,22 @@ impl App {
                 },
                 blocked: a.blocked,
                 next_in: a.next_in,
+                gpu: a.gpu,
+                active: a.active,
+                before_ram: a.before_ram,
+                saved_ram: a.saved_ram,
+                saved_cpu: a.saved_cpu,
+                saved_gpu: a.saved_gpu,
                 ws: a.ws,
                 cpu: a.cpu,
                 level: a.level,
                 audio: a.audio,
             })
             .collect();
+        if self.opt_reveal && self.page.opt_apps.len() != rows_before {
+            self.layout_dirty = true;
+            self.gen += 1;
+        }
         self.page.status = StatusLine {
             drives: s.drives.iter().map(|d| (d.root.clone(), d.total, d.free)).collect(),
             cpu: s.cpu,
@@ -799,7 +811,8 @@ impl App {
             opt_on: self.cfg.optimize,
             opt_saved: opt.saved_ram,
             opt_count: opt.count,
-            opt_would_cpu: opt.would_cpu,
+            opt_saved_cpu: opt.saved_cpu,
+            opt_saved_gpu: opt.saved_gpu,
         };
     }
 

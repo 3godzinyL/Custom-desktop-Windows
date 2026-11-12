@@ -75,7 +75,7 @@ fn load() -> bool {
             continue;
         }
         let kind = f[2].parse().unwrap_or(usize::MAX);
-        if kind < crate::profiles::LANGS.len() {
+        if kind < crate::profiles::LANGS.len() && !crate::util::demo_hidden(f[1]) {
             list.push(Project { path: f[1].to_string(), kind, bytes: f[3].parse().unwrap_or(0), newest: f[5].parse().unwrap_or(0) });
         }
     }

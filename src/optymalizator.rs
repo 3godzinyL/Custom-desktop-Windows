@@ -8,10 +8,12 @@
 // Pomiar: jedno zapytanie do jądra o wszystkie procesy (jak Menedżer zadań) - widać też gry
 // z anty-cheatem; dławić się ich nie da (system odmawia) i wtedy pokazujemy „chroniona".
 //
-// Stopnie (licznik rusza, gdy aplikacja traci pierwszy plan):
-//  - zminimalizowana / bez okna: po max(45 s, 15% czasu aktywności) stopień 1 (EcoQoS +
-//    niższy priorytet), po kolejnym takim odcinku 2 (bezczynny + RAM), potem 3 (ponowny trim);
-//  - widoczna, ale nie na wierzchu: po max(3 min, 30% aktywności) tylko stopień 1;
+// Stopnie (licznik rusza, gdy aplikacja traci pierwszy plan; odcinek = max(30 s, 1/5 czasu,
+// przez który była na wierzchu)):
+//  - zminimalizowana / bez okna: po 1 odcinku stopień 2 (EcoQoS + CPU/GPU poniżej normalnego
+//    + zwolnienie RAM), po 2 odcinkach stopień 3 (CPU/GPU bezczynne + RAM), potem ponowne
+//    zwalnianie RAM, gdy znów urośnie;
+//  - widoczna, ale nie na wierzchu: po max(3 min, 30% aktywności) stopień 1 (bez ruszania RAM);
 //  - gra dźwięk (miernik szczytu, nie sam otwarty strumień): najwyżej stopień 1.
 // Powrót na pierwszy plan natychmiast zdejmuje ograniczenia. Nie ruszamy powłoki, systemu,
 // konsol/serwerów/buildów ani Indeksu.
@@ -29,15 +31,15 @@ use windows::Win32::UI::WindowsAndMessaging::{EnumWindows, GetForegroundWindow, 
 const CREATE_NO_WINDOW: u32 = 0x0800_0000;
 
 /// Minimalny czas, po którym w ogóle zaczynamy ograniczać (krótkie przełączenie się nie liczy).
-const MIN_BUDGET_S: f32 = 45.0;
-/// Każdy stopień ograniczenia to kolejne 15% dotychczasowego czasu aktywności.
-const STEP_FRACTION: f32 = 0.15;
+const MIN_BUDGET_S: f32 = 30.0;
+/// Każdy stopień ograniczenia to kolejna 1/5 dotychczasowego czasu aktywności.
+const STEP_FRACTION: f32 = 0.20;
 /// Okno widoczne, ale przykryte: tylko stopień 1, po dłuższym czasie.
 const COVERED_MIN_S: f32 = 180.0;
 const COVERED_FRACTION: f32 = 0.30;
 const MAX_LEVEL: u8 = 3;
 /// Aplikacja bez okna wchodzi do optymalizacji od tylu MB prywatnego RAM całej grupy.
-const HIDDEN_MIN_RAM: u64 = 150 * 1024 * 1024;
+const HIDDEN_MIN_RAM: u64 = 100 * 1024 * 1024;
 /// Tak długo po ostatnim słyszalnym dźwięku grupa ma najwyżej stopień 1.
 const AUDIO_HOLD: Duration = Duration::from_secs(60);
 
@@ -110,6 +112,13 @@ impl Worker {
         v.chunks(2).filter(|c| c.len() == 2 && c[1] == 1).map(|c| c[0]).collect()
     }
 
+    /// GPU 3D na proces (ułamek jednego silnika 3D, 0..1).
+    fn gpu(&mut self) -> HashMap<u32, f32> {
+        let r = self.cmd("g").unwrap_or_default();
+        let v: Vec<u32> = r.split_whitespace().filter_map(|p| p.parse().ok()).collect();
+        v.chunks(2).filter(|c| c.len() == 2).map(|c| (c[0], c[1] as f32 / 1000.0)).collect()
+    }
+
     /// Pełne ścieżki exe (puste = brak dostępu).
     fn paths(&mut self, pids: &[u32]) -> Vec<String> {
         let mut line = String::from("P");
@@ -176,6 +185,9 @@ struct AppState {
     /// CPU teraz (ułamek wszystkich rdzeni) i średnia sprzed ograniczenia.
     cpu_now: f32,
     avg_cpu: f32,
+    /// GPU 3D teraz i średnia sprzed ograniczenia.
+    gpu_now: f32,
+    avg_gpu: f32,
     last_audible: Option<Instant>,
     /// System odmówił (anty-cheat / admin) - tylko pomiar.
     blocked: bool,
@@ -206,6 +218,14 @@ pub struct AppUsage {
     pub hidden: bool,
     /// Sekundy do następnego stopnia (0 = brak odliczania).
     pub next_in: u32,
+    pub gpu: f32,
+    /// Na pierwszym planie.
+    pub active: bool,
+    /// RAM przed ograniczeniem i ile z tego zwolniono; CPU/GPU zaoszczedzone.
+    pub before_ram: u64,
+    pub saved_ram: u64,
+    pub saved_cpu: f32,
+    pub saved_gpu: f32,
 }
 
 #[derive(Clone, Copy, Default)]
@@ -213,6 +233,9 @@ pub struct Savings {
     pub saved_ram: u64,
     pub count: u32,
     pub would_cpu: f32,
+    /// Ile CPU / GPU zeszlo z ograniczonych aplikacji (srednia sprzed - teraz).
+    pub saved_cpu: f32,
+    pub saved_gpu: f32,
 }
 
 struct Engine {
@@ -389,9 +412,17 @@ pub fn tick(enabled: bool, dt: f32) -> Savings {
     let mut owners = window_owners();
     owners.extend(shown.keys().copied());
     let audible = w.audio();
+    let gpu = w.gpu();
     let none = HashSet::new();
-    // drzewo pierwszego planu nigdy nie jest dławione (np. gra uruchomiona z launchera)
-    let fg_tree: HashSet<u32> = if fg != 0 { descendants(fg, &procs, &none, &none, own).into_iter().chain([fg]).collect() } else { HashSet::new() };
+    // pomocnicze procesy aplikacji na wierzchu (bez cudzych okien) nie są dławione. Pulpit
+    // albo pasek zadań na wierzchu = Eksplorator, a jego drzewo to WSZYSTKIE programy
+    // uruchomione ze Startu - tego nie chronimy (wcześniej przez to znikał np. Chrome)
+    let fg_name = procs.info.get(&fg).map(|p| p.name.clone()).unwrap_or_default();
+    let fg_tree: HashSet<u32> = if fg != 0 && !protected(&fg_name) && !work_process(&fg_name) {
+        descendants(fg, &procs, &owners, &none, own).into_iter().chain([fg]).collect()
+    } else {
+        [fg].into_iter().collect()
+    };
 
     // 1) grupy z oknem
     let mut groups: Vec<Group> = Vec::new();
@@ -468,6 +499,8 @@ pub fn tick(enabled: bool, dt: f32) -> Savings {
             ws_now: 0,
             cpu_now: 0.0,
             avg_cpu: 0.0,
+            gpu_now: 0.0,
+            avg_gpu: 0.0,
             last_audible: None,
             blocked: false,
             hidden: g.hidden,
@@ -494,8 +527,10 @@ pub fn tick(enabled: bool, dt: f32) -> Savings {
         st.members.retain(|p, _| alive.contains(p));
         st.ws_now = ws_sum;
         st.cpu_now = (d_cpu as f64 / dt_100ns / cores_f).clamp(0.0, 1.0) as f32;
+        st.gpu_now = st.members.keys().filter_map(|p| gpu.get(p)).sum::<f32>().min(1.0);
         if st.level == 0 {
             st.avg_cpu = st.avg_cpu * 0.8 + st.cpu_now * 0.2;
+            st.avg_gpu = st.avg_gpu * 0.8 + st.gpu_now * 0.2;
         }
         if st.members.keys().any(|p| audible.contains(p)) {
             st.last_audible = Some(now);
@@ -510,7 +545,7 @@ pub fn tick(enabled: bool, dt: f32) -> Savings {
             0
         } else if forced {
             // „Ogranicz teraz": od razu i mocno, aż wróci na pierwszy plan
-            2
+            3
         } else {
             let idle = st.idle_since.get_or_insert(now).elapsed().as_secs_f32();
             if g.visible {
@@ -519,7 +554,8 @@ pub fn tick(enabled: bool, dt: f32) -> Savings {
                 (idle >= budget) as u8
             } else {
                 let budget = (st.active_secs * STEP_FRACTION).max(MIN_BUDGET_S);
-                ((idle / budget).floor() as u8).min(MAX_LEVEL)
+                // pierwszy odcinek: od razu zwolnienie RAM; drugi: bezczynny CPU/GPU
+                [0u8, 2, 3][((idle / budget).floor() as usize).min(2)]
             }
         };
         if audio && !forced {
@@ -537,7 +573,7 @@ pub fn tick(enabled: bool, dt: f32) -> Savings {
             let lvl = st.level;
             let fresh: Vec<u32> = st.members.iter().filter(|(_, m)| m.level != lvl).map(|(&p, _)| p).collect();
             if !fresh.is_empty() {
-                w.level_many(lvl.min(2), &fresh);
+                w.level_many(lvl, &fresh);
                 for p in fresh {
                     if let Some(m) = st.members.get_mut(&p) {
                         m.level = lvl;
@@ -545,12 +581,12 @@ pub fn tick(enabled: bool, dt: f32) -> Savings {
                 }
             }
             // RAM odrasta w tle - przy najwyższym stopniu oczyść ponownie, najwyżej co 2 min
-            if lvl >= MAX_LEVEL
+            if lvl >= 2
                 && st.last_trim.map(|t| t.elapsed().as_secs() >= 120).unwrap_or(true)
                 && st.ws_now > st.ws_after_trim + 64 * 1024 * 1024
             {
                 let all: Vec<u32> = st.members.keys().copied().collect();
-                w.level_many(2, &all);
+                w.level_many(lvl, &all);
                 st.last_trim = Some(now);
                 st.ws_after_trim = st.ws_now / 2;
             }
@@ -568,25 +604,34 @@ pub fn tick(enabled: bool, dt: f32) -> Savings {
     let mut saved = 0u64;
     let mut count = 0u32;
     let mut would = 0.0f32;
+    let (mut s_cpu, mut s_gpu) = (0.0f32, 0.0f32);
     let mut usage: Vec<AppUsage> = Vec::new();
     for (&pid, s) in e.apps.iter() {
         let limited = s.level > 0 && !s.blocked;
+        let (a_ram, a_cpu, a_gpu) = if limited {
+            (s.ws_before.saturating_sub(s.ws_now), (s.avg_cpu - s.cpu_now).max(0.0), (s.avg_gpu - s.gpu_now).max(0.0))
+        } else {
+            (0, 0.0, 0.0)
+        };
         if limited {
-            saved += s.ws_before.saturating_sub(s.ws_now);
+            saved += a_ram;
             count += 1;
             would += s.avg_cpu;
+            s_cpu += a_cpu;
+            s_gpu += a_gpu;
         }
         let audio = s.last_audible.map(|t| now.duration_since(t) < AUDIO_HOLD).unwrap_or(false);
         // za ile sekund następny stopień (tylko zminimalizowane / bez okna)
         let next_in = match (s.idle_since, s.level < MAX_LEVEL && !s.blocked && !audio) {
             (Some(t), true) if pid != fg && !s.visible => {
                 let budget = (s.active_secs * STEP_FRACTION).max(MIN_BUDGET_S);
-                ((s.level as f32 + 1.0) * budget - t.elapsed().as_secs_f32()).max(0.0) as u32
+                let stage = if s.level == 0 { 1.0 } else { 2.0 };
+                (stage * budget - t.elapsed().as_secs_f32()).max(0.0) as u32
             }
             _ => 0,
         };
-        // pokazujemy w zakładce to, co realnie coś waży lub jest ograniczone
-        if s.level > 0 || s.ws_now > 48 * 1024 * 1024 || s.cpu_now > 0.01 || s.avg_cpu > 0.01 {
+        // w zakładce: wszystko, co realnie coś waży, zużywa CPU/GPU albo jest ograniczone
+        if s.level > 0 || pid == fg || s.ws_now > 32 * 1024 * 1024 || s.cpu_now > 0.005 || s.avg_cpu > 0.005 || s.gpu_now > 0.005 {
             usage.push(AppUsage {
                 pid,
                 hwnd: s.hwnd,
@@ -599,13 +644,20 @@ pub fn tick(enabled: bool, dt: f32) -> Savings {
                 blocked: s.blocked,
                 hidden: s.hidden,
                 next_in,
+                gpu: s.gpu_now,
+                active: pid == fg,
+                before_ram: if limited { s.ws_before } else { 0 },
+                saved_ram: a_ram,
+                saved_cpu: a_cpu,
+                saved_gpu: a_gpu,
             });
         }
     }
-    usage.sort_by(|a, b| (b.ws + (b.cpu * 4e9) as u64).cmp(&(a.ws + (a.cpu * 4e9) as u64)));
+    let weight = |a: &AppUsage| a.ws + ((a.cpu + a.gpu) * 4e9) as u64;
+    usage.sort_by(|a, b| weight(b).cmp(&weight(a)));
     usage.truncate(60);
     e.usage = usage;
-    e.last = Savings { saved_ram: saved, count, would_cpu: would };
+    e.last = Savings { saved_ram: saved, count, would_cpu: would, saved_cpu: s_cpu, saved_gpu: s_gpu };
     write_state(e);
     e.last
 }
@@ -619,8 +671,7 @@ fn set_level(w: &mut Worker, st: &mut AppState, level: u8) {
     if st.level == 0 && level > 0 {
         st.ws_before = st.ws_now;
     }
-    // stopień 3 = ponowne oczyszczenie RAM (2 już ustawił priorytety)
-    let (_, ok) = w.level_many(level.min(2), &pids);
+    let (_, ok) = w.level_many(level, &pids);
     if level > 0 {
         // system odmówił wszystkim procesom (anty-cheat / podniesione uprawnienia)
         st.blocked = ok == 0;
@@ -670,30 +721,93 @@ pub fn usage() -> Vec<AppUsage> {
     ENGINE.lock().unwrap().as_ref().map(|e| e.usage.clone()).unwrap_or_default()
 }
 
+/// Zrzut: wczytuje stan dzialajacego pulpitu z pliku stanu (nic nie ogranicza).
+pub fn load_state_file() {
+    let file = std::path::PathBuf::from(std::env::var_os("LOCALAPPDATA").unwrap_or_default()).join("Indeks").join("optymalizator.stan");
+    let Ok(s) = std::fs::read_to_string(file) else { return };
+    let mut last = Savings::default();
+    let mut usage = Vec::new();
+    for line in s.lines() {
+        let f: Vec<&str> = line.split('\t').collect();
+        let n = |i: usize| f.get(i).and_then(|v| v.parse::<u64>().ok()).unwrap_or(0);
+        match f.first() {
+            Some(&"V") => {
+                last = Savings {
+                    saved_ram: n(2),
+                    count: n(3) as u32,
+                    would_cpu: n(4) as f32 / 1000.0,
+                    saved_cpu: n(5) as f32 / 1000.0,
+                    saved_gpu: n(6) as f32 / 1000.0,
+                }
+            }
+            Some(&"A") if f.len() >= 11 => usage.push(AppUsage {
+                pid: n(1) as u32,
+                hwnd: 0,
+                exe: f[2].to_string(),
+                ws: n(3),
+                cpu: n(4) as f32 / 1000.0,
+                level: n(5) as u8,
+                procs: n(6) as u32,
+                audio: n(7) == 1,
+                blocked: n(8) == 1,
+                hidden: n(9) == 1,
+                next_in: n(10) as u32,
+                gpu: n(11) as f32 / 1000.0,
+                active: n(12) == 1,
+                before_ram: n(13),
+                saved_ram: n(14),
+                saved_cpu: n(15) as f32 / 1000.0,
+                saved_gpu: n(16) as f32 / 1000.0,
+            }),
+            _ => {}
+        }
+    }
+    let mut g = ENGINE.lock().unwrap();
+    let e = g.get_or_insert_with(|| Engine {
+        apps: HashMap::new(),
+        cores: cores(),
+        last: Savings::default(),
+        worker: None,
+        usage: Vec::new(),
+        forced: HashSet::new(),
+        paths: HashMap::new(),
+    });
+    e.usage = usage;
+    e.last = last;
+}
+
 /// „Ogranicz teraz": natychmiast ogranicza daną aplikację (trzyma, aż wróci na pierwszy plan).
 pub fn force_limit(pid: u32) {
     let mut guard = ENGINE.lock().unwrap();
     if let Some(e) = guard.as_mut() {
         e.forced.insert(pid);
         if let (Some(w), Some(st)) = (e.worker.as_mut(), e.apps.get_mut(&pid)) {
-            set_level(w, st, 2);
+            set_level(w, st, 3);
         }
     }
 }
 
 /// Plik stanu dla panelu C# (%LOCALAPPDATA%\Indeks\optymalizator.stan).
 /// V<on> <saved> <count> <would_cpu_promile>
-/// A<pid> <exe> <ws> <cpu_promile> <level> <procs> <audio> <blocked> <hidden> <next_in>
+/// A<pid> <exe> <ws> <cpu_promile> <level> <procs> <audio> <blocked> <hidden> <next_in> <gpu_promile> <active>
 fn write_state(e: &Engine) {
     let dir = std::path::PathBuf::from(std::env::var_os("LOCALAPPDATA").unwrap_or_default()).join("Indeks");
     let file = dir.join("optymalizator.stan");
     let mut s = String::new();
     let on = e.worker.is_some();
-    s.push_str(&format!("V\t{}\t{}\t{}\t{}\n", on as u8, e.last.saved_ram, e.last.count, (e.last.would_cpu * 1000.0) as u32));
+    s.push_str(&format!(
+        "V\t{}\t{}\t{}\t{}\t{}\t{}\n",
+        on as u8,
+        e.last.saved_ram,
+        e.last.count,
+        (e.last.would_cpu * 1000.0) as u32,
+        (e.last.saved_cpu * 1000.0) as u32,
+        (e.last.saved_gpu * 1000.0) as u32
+    ));
     for a in &e.usage {
         let name = a.exe.rsplit(['\\', '/']).next().unwrap_or(&a.exe);
         s.push_str(&format!(
-            "A\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\n",
+            "A\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\n",
             a.pid,
             name,
             a.ws,
@@ -703,7 +817,13 @@ fn write_state(e: &Engine) {
             a.audio as u8,
             a.blocked as u8,
             a.hidden as u8,
-            a.next_in
+            a.next_in,
+            (a.gpu * 1000.0) as u32,
+            a.active as u8,
+            a.before_ram,
+            a.saved_ram,
+            (a.saved_cpu * 1000.0) as u32,
+            (a.saved_gpu * 1000.0) as u32
         ));
     }
     let tmp = file.with_extension("stan.tmp");

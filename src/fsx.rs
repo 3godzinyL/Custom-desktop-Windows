@@ -130,7 +130,7 @@ pub fn list_dir(path: &str, show_protected: bool) -> Result<Vec<Item>, String> {
         let name = util::from_wide(&fd.cFileName);
         let attrs = fd.dwFileAttributes;
         let protected = attrs & FILE_ATTRIBUTE_HIDDEN.0 != 0 && attrs & FILE_ATTRIBUTE_SYSTEM.0 != 0;
-        if name != "." && name != ".." && (show_protected || !protected) {
+        if name != "." && name != ".." && (show_protected || !protected) && !util::demo_hidden(&name) {
             out.push(Item {
                 name,
                 is_dir: attrs & FILE_ATTRIBUTE_DIRECTORY.0 != 0,

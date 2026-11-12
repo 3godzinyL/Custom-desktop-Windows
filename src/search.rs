@@ -295,6 +295,7 @@ pub fn child_dirs(path: &str) -> Option<Vec<String>> {
             let len = unsafe { ix_name(e.ix.0, c, buf.as_mut_ptr() as _, buf.len() as u32) } as usize;
             String::from_utf8_lossy(&buf[..len.min(buf.len())]).into_owned()
         })
+        .filter(|n: &String| !crate::util::demo_hidden(n))
         .collect();
     Some(names)
 }

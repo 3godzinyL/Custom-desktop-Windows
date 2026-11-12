@@ -138,7 +138,8 @@ pub struct StatusLine {
     pub opt_on: bool,
     pub opt_saved: u64,
     pub opt_count: u32,
-    pub opt_would_cpu: f32,
+    pub opt_saved_cpu: f32,
+    pub opt_saved_gpu: f32,
 }
 
 pub struct Page {
@@ -192,6 +193,12 @@ pub struct OptApp {
     pub audio: bool,
     pub blocked: bool,
     pub next_in: u32,
+    pub gpu: f32,
+    pub active: bool,
+    pub before_ram: u64,
+    pub saved_ram: u64,
+    pub saved_cpu: f32,
+    pub saved_gpu: f32,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
