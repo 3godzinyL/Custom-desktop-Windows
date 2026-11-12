@@ -22,7 +22,10 @@
 
 <br><br>
 
-<!-- ZDJĘCIE GŁÓWNE — podmień src na swój link -->
+<b>Indeks</b> · własny pulpit Windows &nbsp;—&nbsp; <b>Rust</b> · <b>C++</b> · <b>C</b> · <b>C#</b> &nbsp;·&nbsp; bez Electrona &nbsp;·&nbsp; bez lagów
+
+<br><br>
+
 <img src="docs/zrzuty/pelny-ekran.png" width="100%" alt="Indeks jako pulpit">
 
 </div>
@@ -186,12 +189,10 @@ indeks/
 <table>
 <tr>
 <td width="50%" align="center">
-<!-- ZDJĘCIE 2 — podmień src na swój link -->
 <img src="docs/zrzuty/widok.png" width="100%" alt="Indeks - folder projektu">
 <br><sub><b>Folder projektu</b>: struktura, projekty, pliki</sub>
 </td>
 <td width="50%" align="center">
-<!-- ZDJĘCIE 3 — podmień src na swój link -->
 <img src="docs/zrzuty/projekty-rust.png" width="100%" alt="Indeks - projekty wg języka">
 <br><sub><b>Projekty wg języka</b>: jedno kliknięcie w język</sub>
 </td>
@@ -202,7 +203,6 @@ indeks/
 
 ## ◆ Projekty na dysku
 
-<!-- ZDJĘCIE 4 — podmień src na swój link (panel „Projekty na dysku”) -->
 <img src="docs/zrzuty/projekty-na-dysku.png" width="100%" alt="Indeks - projekty na dysku">
 
 Wszystkie projekty z całego dysku w jednym miejscu: język, technologia, rozmiar, ostatnia zmiana.
@@ -212,7 +212,6 @@ Katalog buduje **C++** (`indeks-katalog.exe`), **Rust** pilnuje zmian na dysku, 
 
 ## ◆ Ile miejsca możemy odzyskać
 
-<!-- ZDJĘCIE 5 — podmień src na swój link (widok „Czyszczenie dysku”) -->
 <img src="docs/zrzuty/czyszczenie-miejsca.png" width="100%" alt="Indeks - czyszczenie miejsca">
 
 Biblioteki, foldery budowania, cache, pliki tymczasowe AI, logi i projekty nieruszane od miesięcy,
@@ -222,7 +221,6 @@ każde z wyliczonym rozmiarem. Najpierw widać, **ile odzyskasz**, a dopiero pot
 
 ## ◆ Oszczędzanie zasobów tła
 
-<!-- ZDJĘCIE 6 — podmień src na swój link (zakładka optymalizacji: scroll w dół na pasku) -->
 <img src="docs/zrzuty/optymalizacja-tla.png" width="100%" alt="Indeks - optymalizacja zasobów tła">
 
 Przeglądarka, komunikator czy gra w tle to dziesiątki podprocesów. Indeks liczy je razem,
