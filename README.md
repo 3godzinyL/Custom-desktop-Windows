@@ -1,149 +1,242 @@
-# Indeks
+<div align="center">
 
-### Pulpit Windows dla ludzi, którzy mają za dużo plików i projektów
+<img src="https://capsule-render.vercel.app/api?type=waving&color=0:0a0a0a,100:1e1e3a&height=210&section=header&text=Indeks&fontColor=ffd84d&fontSize=78&fontAlignY=38&desc=w%C5%82asny%20pulpit%20Windows%20%C2%B7%20Rust%20%C2%B7%20C%2B%2B%20%C2%B7%20C%20%C2%B7%20C%23%20%C2%B7%20bez%20Electrona&descAlignY=62&descSize=19&descColor=9e9eff" width="100%" alt="Indeks">
 
-Indeks zamienia pulpit Windows w szybki katalog całego komputera. Zamiast przeklikiwać się przez kolejne okna Eksploratora, przeglądasz foldery, pliki i projekty z jednego miejsca — z wyszukiwaniem, drzewem katalogów, kartami, ulubionymi i informacjami o technologiach.
+<br>
 
-To natywna aplikacja Windows napisana w Rust. Rysuje własny interfejs bez Electrona i osadzonej przeglądarki, a pliki pozostawia w ich dotychczasowych lokalizacjach.
+<img src="https://img.shields.io/badge/Rust-interfejs%20%C2%B7%20m%C3%B3zg-000000?style=for-the-badge&logo=rust&logoColor=white" alt="Rust">
+<img src="https://img.shields.io/badge/C%2B%2B-indeks%20%C2%B7%20katalog%20projekt%C3%B3w-00599C?style=for-the-badge&logo=cplusplus&logoColor=white" alt="C++">
+<img src="https://img.shields.io/badge/C-optymalizator%20zasob%C3%B3w-A8B9CC?style=for-the-badge&logo=c&logoColor=black" alt="C">
+<img src="https://img.shields.io/badge/C%23-panel%20%C2%B7%20nak%C5%82adka-512BD4?style=for-the-badge&logo=dotnet&logoColor=white" alt="C#">
+<br>
+<img src="https://img.shields.io/badge/Win32%20API-WorkerW%20%C2%B7%20Shell-0078D4?style=for-the-badge&logo=windows&logoColor=white" alt="Win32 API">
+<img src="https://img.shields.io/badge/Direct2D-DirectWrite-1e1e3a?style=for-the-badge" alt="Direct2D">
+<img src="https://img.shields.io/badge/NT%20API-procesy%20z%20j%C4%85dra-1e1e3a?style=for-the-badge" alt="NT API">
+<img src="https://img.shields.io/badge/WASAPI-miernik%20d%C5%BAwi%C4%99ku-1e1e3a?style=for-the-badge" alt="WASAPI">
+<img src="https://img.shields.io/badge/PDH-CPU%20%C2%B7%20GPU-1e1e3a?style=for-the-badge" alt="PDH">
+<br>
+<img src="https://img.shields.io/badge/MSVC-cl%20%C2%B7%20csc-1e1e3a?style=for-the-badge&logo=visualstudio&logoColor=white" alt="MSVC">
+<img src="https://img.shields.io/badge/.NET%20Framework-4.x-1e1e3a?style=for-the-badge" alt=".NET Framework">
+<img src="https://img.shields.io/badge/Windows-10%20%7C%2011-1e1e3a?style=for-the-badge" alt="Windows">
+<img src="https://img.shields.io/badge/bez%20Electrona-~30%E2%80%9360%20MB-ffd84d?style=for-the-badge" alt="bez Electrona">
 
-![Zrzut ekranu aplikacji Indeks](https://cdn.discordapp.com/attachments/703557136793337926/1569912531881820210/image.png?ex=6af52e7b&is=6af3dcfb&hm=fd0185c34b4ff9f27a5514c011677fb0aca7d4c161645711b6d2b76776e87f23)
+<br><br>
 
-## Interfejs i kierunek wizualny
+<!-- ZDJĘCIE GŁÓWNE — podmień src na swój link -->
+<img src="docs/zrzuty/pelny-ekran.png" width="100%" alt="Indeks jako pulpit">
 
-Interfejs łączy gęstość klasycznego menedżera plików z informacjami przydatnymi podczas pracy z wieloma projektami. Ciemne tło utrzymuje czytelność przez cały dzień, a cienkie obramowania porządkują widok bez marnowania miejsca.
+</div>
 
-- **Pasek nawigacji u góry** zawiera skróty do dysków, Eksploratora, Pobranych, ulubionych i otwartych kart.
-- **Drzewo folderów po lewej** pokazuje strukturę katalogów i pozwala szybko przeskoczyć do dowolnej gałęzi.
-- **Lista projektów i folderów** prezentuje nazwy, datę ostatniej zmiany oraz rozpoznaną technologię.
-- **Siatka plików** wykorzystuje ikony Windows, dzięki czemu typy plików są rozpoznawalne bez czytania rozszerzeń.
-- **Pasek na dole** pokazuje otwarte aplikacje oraz zużycie zasobów komputera i samego Indeksu.
+<br>
 
-Wizualnie Indeks nawiązuje do gęstych katalogów znanych z Chromium, ramek paneli w stylu Norton Commandera, drzewa folderów z ery Windows 98 i wyraźnego zaznaczenia Windows 95. Kolorowe etykiety języków i segmentowe wskaźniki CGA dodają informacyjnych akcentów do spokojnej, ciemnej palety.
+## ◆ O projekcie
 
-### Ikony i kolory technologii
+**Indeks** zastępuje ikony pulpitu Windows widokiem w stylu listingu katalogów z Chromium:
+ciemnym, szybkim i czytelnym. Siedzi pod ikonami pulpitu, więc przeżywa **Win+D**, menu Start
+i zmianę rozdzielczości. **Nie rusza żadnych plików**: chowa tylko ikony Explorera
+i przywraca je przy zamknięciu.
 
-Indeks pobiera ikony plików i folderów z powłoki Windows, więc widok pozostaje zgodny z typami i skojarzeniami znanymi z systemu. Foldery projektów otrzymują dodatkową plakietkę wykrytej technologii. W tabeli język sygnalizuje kolorowa kropka, a w nagłówku projektu pasek udziału języków — podobnie jak w podsumowaniu repozytorium na GitHubie.
+Każda część jest napisana w języku, który do niej pasuje. **Rust** rysuje i podejmuje decyzje.
+**C++** indeksuje dysk i szuka projektów. **C** mierzy i ogranicza procesy w tle.
+**C#** wyświetla panel projektów i nakładkę nad grą. Każdy silnik to osobny program:
+gdy któryś padnie, pulpit działa dalej.
 
-Rozpoznawane są między innymi Rust, C/C++, C#, JavaScript, TypeScript, Python, HTML, CSS, Shell i MQL. Technologia wynika z plików charakterystycznych dla projektu, takich jak `Cargo.toml`, `CMakeLists.txt`, `*.csproj`, `package.json` czy `pyproject.toml`, albo z przewagi plików danego języka.
+<div align="center">
 
-## Co można zrobić
+| Pamięć z indeksem | Wyszukiwanie | Odmalowanie | Okno Indeksu | Pomiar procesów |
+|:---:|:---:|:---:|:---:|:---:|
+| **~30–60 MB** | **2–6 ms** / 346 tys. plików | **~3,5 ms** | **~12 MB** | **~440 procesów** jednym zapytaniem |
 
-### Znaleźć plik lub folder
+</div>
 
-Wyszukiwanie działa na zbudowanym indeksie nazw, także dla polskich znaków. Wyniki pojawiają się w folderach i plikach bez ponownego przeszukiwania dysku. Drzewo katalogów korzysta z tego samego indeksu, więc rozwijanie folderów nie wymaga osobnego skanowania systemu plików.
+<br>
 
-### Pracować z projektami
+## ◆ Co potrafi
 
-Indeks rozpoznaje foldery projektów, użyte języki i czas ostatniej zmiany w poddrzewie. Podsumowanie języków obejmuje projekty znalezione w indeksie. Kliknięcie języka filtruje listę; `Esc` zamyka filtr. Można też dodać kolejne korzenie, na przykład `D:\`, w ustawieniach.
+<table>
+<tr>
+<td width="50%" valign="top">
 
-Skan pomija między innymi `AppData`, foldery zaczynające się od kropki i podfoldery rozpoznanego projektu. Rozpoznaje również kontenery zawierające wiele projektów, takie jak katalog z wieloma paczkami.
+**◇ Pulpit i nawigacja**
+- **Ulubione** w jednej linii nad nazwą folderu
+- **Struktura**: drzewo folderów z językiem każdego projektu
+- **Projekty i foldery** z ikonami technologii i datą ostatniej zmiany
+- **Pliki** jako siatka ikon powłoki, karty, osobne okna Indeksu
+- **Nowe pobrane pliki** pojawiają się od razu
 
-### Odzyskać miejsce na dysku
+</td>
+<td width="50%" valign="top">
 
-Kliknięcie nagłówka **Projekty na dysku** otwiera panel z dwoma widokami: **Wszystkie projekty** (rozmiary i udział języków) oraz **Czyszczenie dysku** (`node_modules`, `target`, `Debug`/`Release`, `bin`/`obj`, Temp, pliki robocze Claude'a i Codexa, pamięć podręczna pakietów, logi — od najstarszych).
+**◇ Wyszukiwanie i projekty**
+- Indeks całego profilu w **C++**: 346 tys. plików w ~15 MB
+- Wyniki w **2–6 ms**, śledzenie zmian na żywo
+- **Projekty na dysku** pogrupowane wg języka (jak pasek języków GitHuba)
+- Rozpoznawanie technologii: `Cargo.toml`, `package.json`, `.sln`, `CMakeLists.txt`…
 
-Pracę dzielą trzy silniki: **C++** (`indeks-katalog.exe`) raz przeszukuje dysk i zapisuje katalog, **Rust** w tle nasłuchuje tylko nazw nowych folderów i zleca przeliczenie jednego projektu, a **C#** (`indeks-panel.exe`) wyświetla gotowy katalog. Usuwanie jest trwałe, wymaga potwierdzenia, obejmuje wyłącznie pozycje z katalogu i nie wchodzi w dowiązania. Historia rozmów, pamięć, ustawienia i klucze narzędzi AI nie są skanowane jako śmieci.
+</td>
+</tr>
+<tr>
+<td width="50%" valign="top">
 
-### Nawigować po wielu miejscach naraz
+**◇ Czyszczenie miejsca**
+- Katalog śmieci projektów: `node_modules`, `target`, `bin/obj`, cache, logi
+- Presety: *biblioteki i budowanie · temp i AI · dawno nieużywane · logi*
+- Widać od razu, **ile miejsca można odzyskać** z każdego projektu
+- Usuwa tylko pozycje z katalogu, połączeń (junction) nie dotyka
 
-Karta Pulpit pozostaje zawsze dostępna. Kolejne karty można dodać z menu kontekstowego folderu. Ulubione zapewniają szybki dostęp do często używanych lokalizacji. Każdy folder można otworzyć w osobnym oknie Indeksu, a otwarte aplikacje przywrócić z dolnego paska.
+</td>
+<td width="50%" valign="top">
 
-### Otwierać pliki po swojemu
+**◇ Optymalizacja zasobów tła**
+- Aplikacja = okno **+ całe drzewo podprocesów** (renderery, GPU, helpery)
+- Także programy schowane do **zasobnika** (bez okna)
+- **EcoQoS**, priorytet, priorytet pamięci, zwalnianie RAM, zawsze stopniowo
+- Grająca muzyka czy rozmowa dostaje najwyżej EcoQoS
+- Terminale, serwery i buildy **nietykalne**, powrót na wierzch = pełne zasoby
 
-Kliknięcie pliku otwiera go w skojarzonej aplikacji. `Ctrl`+klik, środkowy przycisk myszy lub polecenie z menu kontekstowego otwierają lokalizację w Eksploratorze. Menu prawego przycisku udostępnia polecenia powłoki Windows.
+</td>
+</tr>
+<tr>
+<td colspan="2" valign="top">
 
-### Śledzić pobrane pliki
+**◇ Pasek wydajności i nakładka**: dyski · CPU · GPU · RAM na dole pulpitu, przyciski otwartych aplikacji,
+a nad grą na pełnym ekranie **półprzezroczysta nakładka**, przez którą kliknięcie trafia do gry.
+Scroll w dół na pasku rozwija zakładkę optymalizacji: **teraz** obok **„bez optymalizacji”**.
 
-Indeks obserwuje folder Pobrane. Gdy pobieranie się zakończy — zniknie plik tymczasowy, a rozmiar przestanie rosnąć — może przejść do nowego pliku i go zaznaczyć. Zachowanie można wyłączyć w ustawieniach (`pobrane_otwieraj=`).
+</td>
+</tr>
+</table>
 
-### Widzieć użycie zasobów
+<br>
 
-Pasek wydajności pokazuje użycie dysków, CPU, GPU i RAM. Dane są odświeżane co dwie sekundy, gdy pulpit jest widoczny. Osobna nakładka może wyświetlać CPU, GPU, RAM i dyski nad zmaksymalizowanym lub pełnoekranowym oknem; jej widoczność można regulować w ustawieniach.
+## ◆ Technologie: kto za co odpowiada
 
-## Jak działa
+<div align="center">
 
-Indeks łączy kilka natywnych komponentów:
+| Język / API | Program | Za co odpowiada |
+|:---|:---|:---|
+| **Rust** · `windows-rs` | `indeks.exe` | okna Win32, osadzenie w `WorkerW`, układ, logika, decyzje optymalizatora |
+| **Direct2D · DirectWrite** | `indeks.exe` | rysowanie programowe w pasach 256 px, częściowe odmalowanie, ClearType |
+| **C++** | `search.cpp` (FFI) | indeks plików i wielowątkowe wyszukiwanie, profil projektu |
+| **C++** | `indeks-katalog.exe` | skan projektów i śmieci na całym dysku, usuwanie |
+| **C** · NT API · WASAPI | `indeks-optymalizator.exe` | procesy z jądra, EcoQoS, priorytety, RAM, miernik dźwięku |
+| **C#** · WinForms | `indeks-panel.exe` | panel *Projekty na dysku* i *Czyszczenie*, osadzony w oknie Rust |
+| **C#** · okno warstwowe | `indeks-nakladka.exe` | CPU / GPU / RAM nad grą na pełnym ekranie |
+| **PDH** | `indeks.exe` | liczniki CPU i „GPU Engine 3D” |
+| **Shell API** | `indeks.exe` | ikony powłoki, menu kontekstowe, start programów przez Explorera |
 
-| Część | Rola |
-|---|---|
-| **Rust** | Aplikacja Windows, interfejs, nawigacja, konfiguracja, statystyki i obsługa okien. |
-| **Direct2D + DirectWrite** | Programowe rysowanie interfejsu bez osadzonej przeglądarki. |
-| **C++** | Wielowątkowy indeks nazw plików i folderów, wyszukiwanie oraz odczyt relacji między katalogami. |
-| **C# / .NET Framework 4** | Opcjonalny, osobny proces nakładki monitorującej okno na wierzchu. |
-| **Win32 i Windows Shell** | Integracja z pulpitem, ikonami, menu kontekstowym, Eksploratorem i uruchamianiem plików. |
+</div>
 
-Okno pulpitu Indeksu jest osadzone w warstwie pulpitu Explorera (`WorkerW`/`Progman`). Nie pojawia się na pasku zadań ani w `Alt`+`Tab`. Systemowe ikony pulpitu są ukrywane oficjalnym przełącznikiem Windows i wracają po zamknięciu aplikacji; same pliki nie są przenoszone ani modyfikowane.
+> Rust rozmawia z silnikiem C **na żywo przez potok** (komenda → jedna linia odpowiedzi).
+> C ma bezpiecznik: gdy Indeks zniknie, sam cofa wszystkie ograniczenia.
+> Wyłącznie oficjalne API Windows, **bez wstrzykiwania kodu** do innych programów.
 
-Pliki są indeksowane w pamięci. Wyszukiwanie i rozwijanie drzewa korzystają z indeksu, a silnik projektów ustala technologie i daty zmian bez dodatkowego skanowania dysku. Indeks dopasowuje rozmiar okna po zmianie rozdzielczości i ponownie podpina się po restarcie Explorera.
+<br>
 
-## Skróty i obsługa
-
-| Akcja | Sterowanie |
-|---|---|
-| Wejście do folderu / otwarcie pliku | Kliknięcie |
-| Otworzenie w Eksploratorze | `Ctrl`+klik, środkowy przycisk, `[Otwórz Eksplorator]` lub `Ctrl`+`E` |
-| Wstecz / dalej / poziom wyżej | `Backspace`, `Alt`+`←` / `Alt`+`→`, boczne przyciski myszy, `Alt`+`↑` |
-| Wyszukiwanie | Zacznij pisać; `Enter` otwiera wynik, `Esc` zamyka wyszukiwanie |
-| Rozwinięcie drzewa | `[+]` / `[−]`; kliknięcie nazwy przechodzi do folderu |
-| Ulubione | `[+ Dodaj do ulubionych]` lub `Ctrl`+`D` |
-| Zaznaczanie na liście | Strzałki, `PgUp` / `PgDn`, `Home` / `End`, `Enter` |
-| Menu Windows dla pliku | Prawy przycisk myszy |
-| Pokaż pliki systemowe | `Ctrl`+`H` |
-| Filtr projektów według języka | Kliknij język; `Esc` zamyka filtr |
-| Zamknięcie aplikacji | Prawy klik na pustym miejscu pulpitu lub ikona w zasobniku |
-
-## Instalacja i uruchamianie
-
-Wymagane środowisko do kompilacji: **Rust 1.88 lub nowszy** oraz **MSVC Build Tools** z kompilatorem C++.
-
-```powershell
-cargo build --release
-```
-
-Gotowy program znajduje się w `target\release`. `INSTALUJ.cmd` buduje aplikację, kopiuje ją do `%LOCALAPPDATA%\Programs\Indeks`, konfiguruje autostart i uruchamia. `START.bat` uruchamia wersję zainstalowaną lub — jeśli jej nie ma — kompilację z `target\release`.
-
-| Plik | Działanie |
-|---|---|
-| `INSTALUJ.cmd` | Buduje, instaluje i uruchamia Indeks oraz włącza autostart. |
-| `START.bat` | Uruchamia zainstalowaną wersję lub wersję z `target\release`. |
-| `STOP.bat` | Zamyka Indeks, jego okna i proces nakładki; przywraca ikony pulpitu. |
-| `PRZYWROC_PULPIT.cmd` | Zamyka Indeks, wyłącza autostart i przywraca ikony pulpitu. |
-
-## Ustawienia i pliki
-
-Konfiguracja znajduje się w `%APPDATA%\Indeks\indeks.cfg`, a log w `%LOCALAPPDATA%\Indeks\indeks.log`.
-
-Plik konfiguracji obsługuje m.in. korzeń (`dom=`), przypięte lokalizacje (`przypiety=`), dodatkowe ścieżki indeksowania (`indeksuj=`), pomijane ścieżki (`pomijaj=`), opcje nakładki (`nakladka=`, `nakladka_widocznosc=`, `nakladka_dyski=`, `dyski_widocznosc=`), zachowanie okien (`klik_chowa_okna=`, `win_minimalizuje=`), pasek aplikacji (`pasek_aplikacji=`) i reakcję na pobrania (`pobrane_otwieraj=`). Ustawienia wizualne i zachowanie nakładki można też zmienić z poziomu zębatki w prawym górnym rogu.
-
-## Polecenia
+## ◆ Struktura projektu
 
 ```text
-indeks.exe [--folder X]              Uruchamia pulpit.
-indeks.exe --okno [--folder X]       Uruchamia zwykłe okno (np. do testów).
-indeks.exe --zamknij                  Zamyka Indeks i przywraca ikony pulpitu.
-indeks.exe --przywroc                 Zamyka, wyłącza autostart i przywraca ikony.
-indeks.exe --nowe-okno ŚCIEŻKA        Otwiera nową kartę okna Indeksu dla ścieżki.
-indeks.exe --test-szukaj              Mierzy indeks i wyszukiwanie.
-indeks.exe --test-nakladki            Pokazuje nakładkę przez 4 sekundy.
-indeks.exe --uruchom PLIK             Testuje uruchomienie pliku przez Explorera.
-indeks.exe --zrzut plik.png [opcje]   Zapisuje zrzut widoku; dostępne m.in. --folder,
-                                      --szukaj, --szer, --wys, --dpi, --indeks,
-                                      --rodzaj, --ustawienia, --klik-drzewo.
-indeks.exe --okno --folder PLIK       Otwiera folder pliku i zaznacza plik w działającym
-                                      oknie Indeksu (przez WM_COPYDATA).
+indeks/
+│
+├── src/                      ── Rust · okna Win32, rysowanie, logika
+│   ├── main.rs               start i polecenia (--okno, --nowe-okno, --zrzut…)
+│   ├── win.rs                pulpit, okna Indeksu, komunikaty, nakładka
+│   ├── app.rs                stan widoku: drzewo, projekty, pliki, karty, ustawienia
+│   ├── render.rs             Direct2D / DirectWrite, rysowanie w pasach 256 px
+│   ├── page.rs               model strony i układ paneli
+│   ├── desktop.rs            osadzenie pod ikonami pulpitu (WorkerW / Progman)
+│   ├── search.rs             indeks plików (FFI → C++), śledzenie zmian na żywo
+│   ├── profiles.rs           silnik projektów: technologia, języki, daty
+│   ├── katalog.rs            obserwator dysku → katalog projektów (C++) i panel (C#)
+│   ├── optymalizator.rs      mózg optymalizacji: grupy procesów, stopnie, dźwięk
+│   ├── icons.rs              ikony powłoki i plakietki technologii
+│   ├── shell.rs              start programów przez Explorera, menu kontekstowe
+│   ├── winlist.rs            otwarte aplikacje, wykrywanie pełnego ekranu
+│   ├── stats.rs              CPU · GPU · RAM · dyski
+│   ├── downloads.rs          nowe pliki w folderze Pobrane
+│   ├── overlay.rs            zapasowa nakładka w Rust
+│   ├── snapshot.rs           zrzuty widoku bez okna
+│   └── config.rs · autostart.rs · fsx.rs · util.rs
+│
+├── cpp/                      ── C++ i C · silniki
+│   ├── search.cpp · search.h       indeks ~346 tys. plików w 15 MB, wyszukiwanie
+│   ├── katalog.cpp · katalog_skan.cpp · katalog.h
+│   │                               katalog projektów i śmieci (--pelny / --odswiez / --usun)
+│   └── optymalizator.cpp           pomiar i ograniczanie procesów tła (potok z Rustem)
+│
+├── csharp/                   ── C# · widoki
+│   ├── Panel.cs · PanelDane.cs · PanelRysuj.cs   projekty na dysku i czyszczenie
+│   └── Nakladka.cs                               nakładka nad grą
+│
+├── docs/
+│   ├── zrzuty/               zdjęcia do README
+│   └── SZCZEGOLY.md          notatki techniczne
+│
+├── build.rs                  kompiluje C++ (cl), C (cl) i C# (csc), osadza manifest DPI
+├── Cargo.toml
+├── INSTALUJ.cmd              instalacja jako pulpit (bez administratora)
+├── START.bat · STOP.bat      uruchomienie / zatrzymanie (ikony Windows wracają)
+└── PRZYWROC_PULPIT.cmd       powrót do zwykłego pulpitu + wyłączenie autostartu
 ```
 
-`indeks-nakladka.exe` jest budowany przez `build.rs` przy użyciu `csc.exe` z .NET Framework 4. Uruchamia się jako osobny proces powiązany z Indeksem, a ustawienia czyta z `indeks.cfg`. Jeśli proces nakładki jest niedostępny, Indeks może narysować nakładkę samodzielnie. Tryb `--zrzut plik.png` pozwala podejrzeć jej wygląd.
+<br>
 
-## Wydajność
+## ◆ Z aplikacji
 
-Pomiary projektu dla indeksu około **346 tys. plików** (10.11.2026):
+<table>
+<tr>
+<td width="50%" align="center">
+<!-- ZDJĘCIE 2 — podmień src na swój link -->
+<img src="docs/zrzuty/widok.png" width="100%" alt="Indeks - folder projektu">
+<br><sub><b>Folder projektu</b>: struktura, projekty, pliki</sub>
+</td>
+<td width="50%" align="center">
+<!-- ZDJĘCIE 3 — podmień src na swój link -->
+<img src="docs/zrzuty/projekty-rust.png" width="100%" alt="Indeks - projekty wg języka">
+<br><sub><b>Projekty wg języka</b>: jedno kliknięcie w język</sub>
+</td>
+</tr>
+</table>
 
-- około **34–40 MB pamięci prywatnej** łącznie z indeksem;
-- **22 wątki** i bliskie zeru użycie CPU w bezczynności;
-- wyszukiwanie nazw w około **2–6 ms**;
-- reakcja na najechanie myszą lub strzałkę około **3,5 ms**;
-- pełne odmalowanie ekranu przy zmianie folderu około **60–80 ms**;
-- uruchomienie pliku przez Explorera około **150–500 ms**.
+<br>
 
-Wartości zależą od sprzętu i wielkości indeksu. Nakładka okienkowa działa nad pełnoekranowymi oknami bez ramek i w trybie pełnoekranowym z optymalizacją Windows. Windows nie wyświetla innych okien nad ekskluzywnym pełnym ekranem DirectX.
+## ◆ Projekty na dysku
+
+<!-- ZDJĘCIE 4 — podmień src na swój link (panel „Projekty na dysku”) -->
+<img src="docs/zrzuty/projekty-na-dysku.png" width="100%" alt="Indeks - projekty na dysku">
+
+Wszystkie projekty z całego dysku w jednym miejscu: język, technologia, rozmiar, ostatnia zmiana.
+Katalog buduje **C++** (`indeks-katalog.exe`), **Rust** pilnuje zmian na dysku, a **C#** wyświetla.
+
+<br>
+
+## ◆ Ile miejsca możemy odzyskać
+
+<!-- ZDJĘCIE 5 — podmień src na swój link (widok „Czyszczenie dysku”) -->
+<img src="docs/zrzuty/czyszczenie-miejsca.png" width="100%" alt="Indeks - czyszczenie miejsca">
+
+Biblioteki, foldery budowania, cache, pliki tymczasowe AI, logi i projekty nieruszane od miesięcy,
+każde z wyliczonym rozmiarem. Najpierw widać, **ile odzyskasz**, a dopiero potem usuwasz.
+
+<br>
+
+## ◆ Oszczędzanie zasobów tła
+
+<!-- ZDJĘCIE 6 — podmień src na swój link (zakładka optymalizacji: scroll w dół na pasku) -->
+<img src="docs/zrzuty/optymalizacja-tla.png" width="100%" alt="Indeks - optymalizacja zasobów tła">
+
+Przeglądarka, komunikator czy gra w tle to dziesiątki podprocesów. Indeks liczy je razem,
+a po zminimalizowaniu ogranicza je **stopniowo**:
+
+<div align="center">
+
+| Stopień | Kiedy | Co robi |
+|:---:|:---|:---|
+| **1** | ~45 s w tle · okno przykryte od 3 min · gra dźwięk | EcoQoS + niższy priorytet + średni priorytet pamięci |
+| **2** | kolejny odcinek w tle | priorytet bezczynny + bardzo niski priorytet pamięci + zwolnienie RAM |
+| **3** | dalej w tle | ponowne zwolnienie RAM, gdy znów urośnie |
+| **0** | wraca na wierzch | **natychmiast pełne zasoby**, oryginalny priorytet |
+
+</div>
+
+<img src="https://capsule-render.vercel.app/api?type=waving&color=0:1e1e3a,100:0a0a0a&height=100&section=footer" width="100%" alt="">

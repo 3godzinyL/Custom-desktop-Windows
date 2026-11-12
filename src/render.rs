@@ -299,8 +299,23 @@ impl Renderer {
         let rows = slots.last().map(|s| s.1 + 1).unwrap_or(0);
         let apps_h = rows as f32 * row_h;
         l.status = Rc { x: 0.0, y: snap(h - 38.0), w, h: h - snap(h - 38.0) };
+        // rozwinieta zakladka optymalizacji ma WLASNE miejsce tuz nad paskiem wydajnosci:
+        // panele nad nia (takze okno C# projektow) sie skracaja, wiec nic jej nie zaslania
+        // i przewijanie list (ScrollWindowEx) nie przesuwa jej pikseli
+        let mut opt_y = l.status.y;
+        if page.opt_reveal && page.status.opt_on {
+            let orow = snap(26.0);
+            let header_h = snap(116.0);
+            let max_h = (h * 0.42).min(h - snap(380.0)).max(header_h + snap(14.0));
+            let want = header_h + page.opt_apps.len() as f32 * orow + snap(14.0);
+            let ph = snap(want.min(max_h).max(header_h + snap(14.0)));
+            opt_y = l.status.y - ph;
+            l.opt_panel = Rc { x: snap(8.0), y: opt_y, w: w - snap(16.0), h: ph };
+        }
         if apps_h > 0.0 {
-            l.apps_row = Rc { x: 0.0, y: l.status.y - apps_h, w, h: apps_h };
+            // odstep na tytul ramki zakladki (wpisany w jej gorna linie)
+            let gap = if l.opt_panel.h > 0.0 { snap(14.0) } else { 0.0 };
+            l.apps_row = Rc { x: 0.0, y: opt_y - gap - apps_h, w, h: apps_h };
             for (x, row, bw) in slots {
                 l.apps.push(Rc { x, y: l.apps_row.y + row as f32 * row_h + 4.0, w: bw, h: row_h - 8.0 });
             }
@@ -333,7 +348,6 @@ impl Renderer {
         x += ew + 14.0;
         let dlw = self.measure(DOWNLOADS, false);
         l.downloads = Rc { x, y: cy, w: dlw, h: self.line_h };
-        x += dlw + 28.0 + self.measure_with("Ulubione:", &self.f_mono_bold) + 12.0;
         let mut right = l.gear.x - 14.0;
         for a in page.actions.iter().rev() {
             let aw = self.measure(&a.text, false);
@@ -341,20 +355,11 @@ impl Renderer {
             l.actions.insert(0, Rc { x: right, y: cy, w: aw, h: self.line_h });
             right -= 18.0;
         }
-        for f in &page.favs {
-            let fw = self.measure(&f.text, true) + 22.0;
-            if x + fw > right {
-                l.favs.push(Rc::default());
-                continue;
-            }
-            l.favs.push(Rc { x, y: cy, w: fw, h: self.line_h });
-            x += fw + 16.0;
-        }
 
         // Struktura i naglowek zaczynaja sie zaraz pod gornym paskiem
         let top = l.top.bottom() + snap(10.0);
         // panele koncza sie nad rzedem aplikacji (a bez niego nad paskiem wydajnosci)
-        let bottom = if l.apps_row.h > 0.0 { l.apps_row.y } else { l.status.y } - snap(8.0);
+        let bottom = if l.apps_row.h > 0.0 { l.apps_row.y } else { opt_y } - snap(8.0);
         // panel "Projekty na dysku" pod drzewem i lista folderow - panele nad nim
         // koncza sie wczesniej, zeby nic na niego nie nachodzilo
         let kinds_h = snap(76.0);
@@ -366,7 +371,26 @@ impl Renderer {
         let mx = l.tree_frame.right() + snap(12.0);
         let mw = w - mx - snap(8.0);
         // tytul, sciezka i (dla folderu) pasek jezykow z silnika projektow
-        l.head = Rc { x: mx, y: top - 4.0, w: mw, h: snap(self.h1_h + self.line_h * 2.0 + 18.0) };
+        // Ulubione: jedna linia nad tytulem biezacego folderu; brak miejsca = kolejny rzad nizej
+        let mut head_y = top - 4.0;
+        if !page.favs.is_empty() {
+            let fav_h = snap(self.line_h + 6.0);
+            let x0 = mx + self.measure_with("Ulubione:", &self.f_mono_bold) + 14.0;
+            let x1 = mx + mw - 8.0;
+            let (mut fx, mut fy) = (x0, top - 4.0);
+            for f in &page.favs {
+                let fw = (self.measure(&f.text, true) + 22.0).min(x1 - x0);
+                if fx + fw > x1 && fx > x0 {
+                    fx = x0;
+                    fy += fav_h;
+                }
+                l.favs.push(Rc { x: fx, y: fy, w: fw, h: self.line_h });
+                fx += fw + 16.0;
+            }
+            l.fav_frame = Rc { x: mx, y: top - 4.0, w: mw, h: snap(fy + fav_h - (top - 4.0)) };
+            head_y = l.fav_frame.bottom() + snap(4.0);
+        }
+        l.head = Rc { x: mx, y: head_y, w: mw, h: snap(self.h1_h + self.line_h * 2.0 + 18.0) };
         // karty nad lista "Projekty i foldery": [ikona nazwa  x]
         l.tabbar = Rc { x: mx, y: l.head.bottom(), w: mw, h: snap(30.0) };
         let ty = l.tabbar.y + 4.0;
@@ -471,15 +495,11 @@ impl Renderer {
             l.date = Col { x: x0 + nw + fw + sw, w: dw };
         }
 
-        // rozwinieta zakladka optymalizacji nad paskiem wydajnosci
-        if page.opt_reveal && page.status.opt_on {
+        // przyciski wierszy rozwinietej zakladki optymalizacji
+        if l.opt_panel.h > 0.0 {
             let row_h = snap(26.0);
             let header_h = snap(116.0);
-            let max_h = (h * 0.55).min(h - l.top.bottom() - snap(20.0));
-            let want = header_h + page.opt_apps.len() as f32 * row_h + snap(14.0);
-            let ph = want.min(max_h).max(header_h + snap(14.0));
-            let py = l.status.y - ph;
-            l.opt_panel = Rc { x: snap(8.0), y: py, w: w - snap(16.0), h: ph };
+            let py = l.opt_panel.y;
             let list_top = py + header_h;
             let avail = l.status.y - snap(10.0) - list_top;
             let n = ((avail / row_h).floor().max(0.0) as usize).min(page.opt_apps.len());
@@ -600,6 +620,9 @@ impl Renderer {
             if self.visible(&l.tabbar) {
                 self.draw_tabs(rt, page, l, ui, &b, icons)?;
             }
+            if l.fav_frame.h > 0.0 && self.visible(&l.fav_frame) {
+                self.draw_favs(rt, page, l, ui, &b, icons)?;
+            }
             if self.visible(&l.tree_frame) {
                 self.draw_tree(rt, page, l, ui, &b, icons)?;
             }
@@ -712,7 +735,6 @@ impl Renderer {
         let p = self.px();
         self.hline(rt, 0.0, l.width, l.top.bottom() - p, &b.frame);
         self.hline(rt, 0.0, l.width, l.top.bottom() - 4.0 * p, &b.frame);
-        let ly = (l.top.h - self.mono_h) / 2.0;
         // dyski, potem Eksplorator, potem ulubione
         for (i, (d, r)) in page.drives.iter().zip(&l.drives).enumerate() {
             self.icon_link(rt, d, r, ui.hover == Target::Drive(i), b, icons)?;
@@ -722,14 +744,6 @@ impl Renderer {
         self.text(rt, &page.explorer.text, e.x, e.y, e.w + 4.0, &self.f_body.clone(), &b.link, ui.hover == Target::Explorer)?;
         let d = &l.downloads;
         self.text(rt, DOWNLOADS, d.x, d.y, d.w + 4.0, &self.f_body.clone(), &b.link, ui.hover == Target::Downloads)?;
-        let fx = d.right() + 16.0;
-        self.vline(rt, fx - 4.0, l.top.y + 7.0, l.top.bottom() - 7.0, &b.frame);
-        self.text(rt, "Ulubione:", fx + 10.0, ly, 200.0, &self.f_mono_bold.clone(), &b.dim, false)?;
-        for (i, (f, r)) in page.favs.iter().zip(&l.favs).enumerate() {
-            if r.w > 0.0 {
-                self.icon_link(rt, f, r, ui.hover == Target::Fav(i), b, icons)?;
-            }
-        }
         for (i, (a, r)) in page.actions.iter().zip(&l.actions).enumerate() {
             self.text(rt, &a.text, r.x, r.y, r.w + 4.0, &self.f_body.clone(), &b.link, ui.hover == Target::Action(i))?;
         }
@@ -798,6 +812,17 @@ impl Renderer {
     }
 
     // --- drzewo ---
+
+    fn draw_favs(&mut self, rt: &ID2D1RenderTarget, page: &Page, l: &Layout, ui: &Ui, b: &Brushes, icons: &mut Icons) -> Result<()> {
+        let ly = l.favs.first().map(|r| r.y + (r.h - self.mono_h) / 2.0).unwrap_or(l.fav_frame.y);
+        self.text(rt, "Ulubione:", l.fav_frame.x, ly, 200.0, &self.f_mono_bold.clone(), &b.dim, false)?;
+        for (i, (f, r)) in page.favs.iter().zip(&l.favs).enumerate() {
+            if r.w > 0.0 {
+                self.icon_link(rt, f, r, ui.hover == Target::Fav(i), b, icons)?;
+            }
+        }
+        Ok(())
+    }
 
     fn draw_tree(&mut self, rt: &ID2D1RenderTarget, page: &Page, l: &Layout, ui: &Ui, b: &Brushes, icons: &mut Icons) -> Result<()> {
         self.frame(rt, &l.tree_frame, &page.tree_title, b)?;
@@ -1412,14 +1437,28 @@ impl Renderer {
             self.text(rt, &a.name, lx + 16.0, ty, col_ram - lx - 20.0, &self.f_body.clone(), &b.text, false)?;
             self.text(rt, &stats::mb(a.ws), col_ram, row_y + (lim.h - self.mono_h) / 2.0, 80.0, &mono, &b.text, false)?;
             self.text(rt, &format!("{:.0}%", a.cpu * 100.0), col_cpu, row_y + (lim.h - self.mono_h) / 2.0, 70.0, &mono, &b.text, false)?;
-            let (stan, col) = match a.level {
-                0 => ("pełne zasoby", &b.dim),
-                1 => ("EcoQoS", &b.cyan),
-                _ => ("EcoQoS + RAM", &b.cyan),
+            let stan = if a.blocked {
+                "chroniona przez system / anty-cheat - tylko pomiar".to_string()
+            } else {
+                let base = match a.level {
+                    0 => "pełne zasoby",
+                    1 => "EcoQoS + niższy priorytet",
+                    _ => "EcoQoS + bezczynny + RAM",
+                };
+                let mut s = base.to_string();
+                if a.audio {
+                    s.push_str(" · słychać dźwięk (max EcoQoS)");
+                } else if a.next_in > 0 {
+                    s.push_str(&format!(" · następny stopień za {} s", a.next_in));
+                }
+                s
             };
-            self.text(rt, stan, col_stan, ty, (lim.x - col_stan - 12.0).max(40.0), &self.f_body.clone(), col, false)?;
+            let col = if a.level > 0 && !a.blocked { &b.cyan } else { &b.dim };
+            self.text(rt, &stan, col_stan, ty, (lim.x - col_stan - 12.0).max(40.0), &self.f_body.clone(), col, false)?;
             // przyciski
-            if a.level > 0 {
+            if a.blocked {
+                self.opt_button(rt, &l.opt_limit[i], "Chroniona", false, false, b)?;
+            } else if a.level > 0 {
                 self.opt_button(rt, &l.opt_limit[i], "Ograniczone", false, false, b)?;
             } else {
                 self.opt_button(rt, &l.opt_limit[i], "Ogranicz teraz", ui.hover == Target::OptLimit(i), true, b)?;

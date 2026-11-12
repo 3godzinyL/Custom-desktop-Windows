@@ -769,7 +769,24 @@ impl App {
         // rozwinieta zakladka optymalizacji: lista aplikacji z silnika
         self.page.opt_apps = crate::optymalizator::usage()
             .into_iter()
-            .map(|a| crate::page::OptApp { pid: a.pid, hwnd: a.hwnd, name: a.exe, ws: a.ws, cpu: a.cpu, level: a.level })
+            .map(|a| crate::page::OptApp {
+                pid: a.pid,
+                hwnd: a.hwnd,
+                name: {
+                    let n = a.exe.rsplit(['\\', '/']).next().unwrap_or(&a.exe).to_string();
+                    let mut n = if a.procs > 1 { format!("{}  · {} proc.", n, a.procs) } else { n };
+                    if a.hidden {
+                        n.push_str("  · w zasobniku");
+                    }
+                    n
+                },
+                blocked: a.blocked,
+                next_in: a.next_in,
+                ws: a.ws,
+                cpu: a.cpu,
+                level: a.level,
+                audio: a.audio,
+            })
             .collect();
         self.page.status = StatusLine {
             drives: s.drives.iter().map(|d| (d.root.clone(), d.total, d.free)).collect(),
@@ -815,6 +832,15 @@ impl App {
             selected: self.selected,
             drag: self.drag.map(|d| d.0),
             index_count: search::status().count,
+        }
+    }
+
+    /// Pozycja ulubionego `i` (jak na ekranie) w `cfg.pins`. Lista pomija przypiete dyski,
+    /// wiec indeksy sie roznia - bez tego klik otwieral sasiedni folder.
+    pub fn fav_pin(&self, i: usize) -> Option<usize> {
+        match self.page.favs.get(i).map(|f| &f.target) {
+            Some(LinkTarget::Fav(k)) => Some(*k),
+            _ => None,
         }
     }
 
@@ -1092,7 +1118,7 @@ impl App {
     pub fn activate(&mut self, t: Target, in_explorer: bool) {
         match t {
             Target::Fav(i) => {
-                if let Some(p) = self.cfg.pins.get(i).cloned() {
+                if let Some(p) = self.fav_pin(i).and_then(|k| self.cfg.pins.get(k).cloned()) {
                     self.navigate(&p);
                 }
             }
@@ -1423,10 +1449,10 @@ impl App {
         if let Some(i) = l.kinds.iter().position(|r| r.contains(x, y)) {
             return Target::Kind(i);
         }
+        if l.fav_frame.contains(x, y) {
+            return l.favs.iter().position(|r| r.w > 0.0 && r.contains(x, y)).map(Target::Fav).unwrap_or(Target::None);
+        }
         if l.top.contains(x, y) {
-            if let Some(i) = l.favs.iter().position(|r| r.w > 0.0 && r.contains(x, y)) {
-                return Target::Fav(i);
-            }
             if let Some(i) = l.actions.iter().position(|r| r.contains(x, y)) {
                 return Target::Action(i);
             }

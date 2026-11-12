@@ -189,6 +189,9 @@ pub struct OptApp {
     pub ws: u64,
     pub cpu: f32,
     pub level: u8,
+    pub audio: bool,
+    pub blocked: bool,
+    pub next_in: u32,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
@@ -233,6 +236,8 @@ pub struct Layout {
     pub explorer: Rc,
     pub downloads: Rc,
     pub favs: Vec<Rc>,
+    /// Ramka "Ulubione" nad Struktura.
+    pub fav_frame: Rc,
     /// Pasek kart (pod ulubionymi): (karta, przycisk zamkniecia).
     pub tabbar: Rc,
     pub tabs: Vec<(Rc, Rc)>,

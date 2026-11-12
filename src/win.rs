@@ -1409,15 +1409,24 @@ fn fav_menu(hwnd: HWND, k: usize, pt: POINT) {
     let extras = vec![item(ID_UNPIN, "Usuń z ulubionych"), item(ID_LEFT, "Przesuń w lewo"), item(ID_RIGHT, "Przesuń w prawo"), sep(), item(ID_EXPLORER, "Otwórz w Eksploratorze")];
     if let MenuResult::Extra(id) = shell::popup_only(hwnd, pt, &extras) {
         with_app(|a| {
-            let n = a.cfg.pins.len();
+            // k = pozycja na ekranie; w cfg.pins sa jeszcze (ukryte) dyski
+            let (Some(cur), prev, next) = (a.fav_pin(k), k.checked_sub(1).and_then(|j| a.fav_pin(j)), a.fav_pin(k + 1)) else { return };
             match id {
-                ID_UNPIN if k < n => {
-                    a.cfg.pins.remove(k);
+                ID_UNPIN => {
+                    a.cfg.pins.remove(cur);
                 }
-                ID_LEFT if k > 0 && k < n => a.cfg.pins.swap(k, k - 1),
-                ID_RIGHT if k + 1 < n => a.cfg.pins.swap(k, k + 1),
+                ID_LEFT => {
+                    if let Some(j) = prev {
+                        a.cfg.pins.swap(cur, j);
+                    }
+                }
+                ID_RIGHT => {
+                    if let Some(j) = next {
+                        a.cfg.pins.swap(cur, j);
+                    }
+                }
                 ID_EXPLORER => {
-                    if let Some(p) = a.cfg.pins.get(k) {
+                    if let Some(p) = a.cfg.pins.get(cur) {
                         shell::explorer_folder(p);
                     }
                 }

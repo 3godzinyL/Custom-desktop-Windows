@@ -131,6 +131,7 @@ fn main() {
                 hover_row: arg_value(&args, "--najedz").and_then(|v| v.parse().ok()),
                 select: arg_value(&args, "--zaznacz").and_then(|v| v.parse().ok()),
                 settings: args.iter().any(|a| a == "--ustawienia"),
+                opt: args.iter().any(|a| a == "--opt"),
                 tree_click: arg_value(&args, "--klik-drzewo").and_then(|v| v.parse().ok()),
                 demo: args.iter().any(|a| a == "--demo"),
                 kind: arg_value(&args, "--rodzaj").and_then(|v| v.parse().ok()),

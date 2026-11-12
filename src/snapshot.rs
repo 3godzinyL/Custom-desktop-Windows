@@ -29,6 +29,8 @@ pub struct Opts {
     pub height: u32,
     pub dpi: f32,
     pub hover_row: Option<usize>,
+    /// Rozwinieta zakladka optymalizacji (dwa przejscia silnika, nic nie jest dlawione).
+    pub opt: bool,
     pub select: Option<usize>,
     /// Pokaz okno ustawien.
     pub settings: bool,
@@ -90,6 +92,14 @@ pub fn run(o: Opts) -> Result<()> {
     }
     if o.settings {
         app.toggle_settings(true);
+    }
+    if o.opt {
+        app.cfg.optimize = true;
+        crate::optymalizator::tick(true, 2.0);
+        std::thread::sleep(std::time::Duration::from_millis(1000));
+        crate::optymalizator::tick(true, 1.0);
+        app.update_stats();
+        app.toggle_opt_reveal(true);
     }
     app.view_w = o.width as f32 * 96.0 / o.dpi;
     app.view_h = o.height as f32 * 96.0 / o.dpi;
